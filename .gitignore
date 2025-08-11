@@ -1,5 +1,60 @@
-# Ignore files
+# Python bytecode and cache files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual environment directories
+.venv/
+venv/
+ENV/
+env/
+
+# Environment & configuration files
 .env
-logs/*
-__pycache__
-.venv
+
+# Build and distribution directories
+build/
+dist/
+.eggs/
+*.egg-info/
+*.egg
+
+# PyInstaller
+*.spec
+
+# Unit test / coverage
+.coverage
+*.cover
+.hypothesis/
+.pytest_cache/
+
+# Jupyter Notebooks
+.ipynb_checkpoints/
+
+# MyPy & other type checkers
+.mypy_cache/
+
+# Logs
+logs/
+*.log
+
+# IDE / Editor directories and files
+.idea/
+.vscode/
+*.swp
+*.swo
+*.tmp
+
+# Database & migrations
+*.sqlite3
+
+# OS generated files
+.DS_Store
+Thumbs.db
+
+# Alembic migration cache
+alembic/
+
+# Tron/crypto keys (ensure private keys are not committed)
+*.key
+*.pem

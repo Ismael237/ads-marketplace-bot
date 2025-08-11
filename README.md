@@ -99,7 +99,6 @@ bot-marketplace/
 
 ### Sécurité
 - `ENCRYPTION_KEY` : Clé de chiffrement 32 bytes pour les clés privées
-- `JWT_SECRET` : Secret pour la génération de tokens
 
 ### Configuration Business
 - `MIN_DEPOSIT_TRX` : Montant minimum de dépôt (défaut: 1 TRX)

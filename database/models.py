@@ -156,8 +156,8 @@ class User(BaseModel):
     total_spent = Column(Numeric(precision=18, scale=6), default=0, nullable=False)
     
     # Relationships
-    sponsor = relationship("User", remote_side=[id], back_populates="referrals")
-    referrals = relationship("User", back_populates="sponsor")
+    sponsor = relationship("User", remote_side=lambda: [User.id], back_populates="referrals")
+    referrals = relationship("User", back_populates="sponsor", foreign_keys=[sponsor_id])
     campaigns = relationship("Campaign", back_populates="owner")
     participations = relationship("CampaignParticipation", back_populates="user")
     wallets = relationship("UserWallet", back_populates="user")

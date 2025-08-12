@@ -5,13 +5,16 @@ Provides common utility functions and database helpers
 from datetime import datetime, timezone
 import secrets
 import string
-from typing import Optional
 from sqlalchemy.orm import Session
 import random
 import re
+from decimal import Decimal
 
-def generate_referral_code(length=8):
-    return ''.join(random.choices(string.ascii_lowercase + string.digits, k=length))
+
+def generate_referral_code(length: int = 8) -> str:
+    """Generate a unique referral code"""
+    characters = string.ascii_uppercase + string.digits
+    return ''.join(secrets.choice(characters) for _ in range(length))
 
 
 def generate_share_link(bot_username, referral_code):
@@ -34,11 +37,6 @@ def get_utc_date():
 def get_separator():
     return "─" * 20
 
-def generate_referral_code(length: int = 8) -> str:
-    """Generate a unique referral code"""
-    characters = string.ascii_uppercase + string.digits
-    return ''.join(secrets.choice(characters) for _ in range(length))
-
 
 def generate_validation_link(length: int = 32) -> str:
     """Generate a unique validation link token"""
@@ -46,58 +44,26 @@ def generate_validation_link(length: int = 32) -> str:
     return ''.join(secrets.choice(characters) for _ in range(length))
 
 
-def validate_tron_address(address: str) -> bool:
-    """
-    Validate TRON address format
-    TRON addresses start with 'T' and are 34 characters long
-    """
-    if not address or len(address) != 34:
-        return False
-    
-    if not address.startswith('T'):
-        return False
-    
-    # Basic character validation (base58)
-    valid_chars = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz"
-    return all(c in valid_chars for c in address)
-
-
 def format_trx_amount(amount: float, decimals: int = 6) -> str:
     """Format TRX amount for display"""
     return f"{amount:.{decimals}f} TRX"
 
 
+def format_trx_escaped(amount) -> str:
+    """Format a TRX numeric value to 6 decimals and escape for MarkdownV2. No unit."""
+    try:
+        num = float(amount)
+    except Exception:
+        try:
+            num = float(Decimal(str(amount)))
+        except Exception:
+            num = 0.0
+    return escape_markdown_v2(f"{num:.6f}")
+
+
 def calculate_commission(amount: float, rate: float) -> float:
     """Calculate commission amount based on rate"""
     return round(amount * rate, 6)
-
-
-def is_valid_telegram_id(telegram_id: str) -> bool:
-    """Validate Telegram ID format"""
-    try:
-        int(telegram_id)
-        return len(telegram_id) >= 5 and len(telegram_id) <= 15
-    except ValueError:
-        return False
-
-
-def sanitize_username(username: str) -> Optional[str]:
-    """Sanitize and validate Telegram username"""
-    if not username:
-        return None
-    
-    # Remove @ if present
-    username = username.lstrip('@')
-    
-    # Telegram username validation
-    if len(username) < 5 or len(username) > 32:
-        return None
-    
-    # Only alphanumeric and underscores allowed
-    if not username.replace('_', '').isalnum():
-        return None
-    
-    return username
 
 
 def paginate_query(query, page: int = 1, per_page: int = 10):

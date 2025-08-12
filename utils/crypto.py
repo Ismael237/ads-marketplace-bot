@@ -28,3 +28,16 @@ def decrypt_data(token: str) -> bytes:
     cipher = Cipher(algorithms.AES(KEY), modes.CFB(iv), backend=default_backend())
     decryptor = cipher.decryptor()
     return decryptor.update(ct) + decryptor.finalize()
+
+# Convenience wrappers operating on strings, used by services layer
+def encrypt_text(text: str) -> str:
+    """Encrypt a UTF-8 string and return base64 token string."""
+    if text is None:
+        return ""
+    return encrypt_data(text.encode("utf-8"))
+
+def decrypt_text(token: str) -> str:
+    """Decrypt a base64 token string and return UTF-8 string."""
+    if not token:
+        return ""
+    return decrypt_data(token).decode("utf-8")

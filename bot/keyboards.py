@@ -11,6 +11,7 @@ WITHDRAW_BTN = "🏧 Withdraw"
 REFERRAL_BTN = "👥 Referral"
 HISTORY_BTN = "📜 History"
 SETTINGS_BTN = "⚙️ Settings"
+WALLET_BTN = "💼 Wallet"
 
 # Navigation Buttons
 MAIN_MENU_BTN = "🏠 Main Menu"
@@ -52,9 +53,8 @@ def main_reply_keyboard():
     """Main menu keyboard with primary bot functions (persistent)."""
     keyboard = [
         [BROWSE_BTN, BALANCE_BTN],
-        [DEPOSIT_BTN, WITHDRAW_BTN],
-        [REFERRAL_BTN, SETTINGS_BTN],
-        [HISTORY_BTN],
+        [WALLET_BTN, REFERRAL_BTN],
+        [SETTINGS_BTN],
         [MY_ADS_BTN],
     ]
     return ReplyKeyboardMarkup(
@@ -119,6 +119,19 @@ def settings_reply_keyboard():
         [ABOUT_BTN, Q_A_BTN],
         [REFERRAL_INFO_BTN],
         [MAIN_MENU_BTN]
+    ]
+    return ReplyKeyboardMarkup(
+        keyboard,
+        resize_keyboard=True,
+        one_time_keyboard=False
+    )
+
+def wallet_reply_keyboard():
+    """Wallet submenu keyboard: Deposit, Withdraw, History"""
+    keyboard = [
+        [DEPOSIT_BTN, WITHDRAW_BTN],
+        [HISTORY_BTN],
+        [MAIN_MENU_BTN],
     ]
     return ReplyKeyboardMarkup(
         keyboard,

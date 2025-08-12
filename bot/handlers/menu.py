@@ -20,6 +20,7 @@ from bot.keyboards import (
     REFERRAL_BTN,
     SETTINGS_BTN,
     HISTORY_BTN,
+    WALLET_BTN,
     HELP_BTN,
     SUPPORT_BTN,
     ABOUT_BTN,
@@ -37,6 +38,7 @@ from bot.keyboards import (
     main_reply_keyboard,
     ads_reply_keyboard,
     withdraw_reply_keyboard,
+    wallet_reply_keyboard,
 )
 
 from bot.handlers.participation import browse_bots
@@ -170,6 +172,8 @@ async def handle_menu_selection(update, context):
         await on_referral(update, context)
     elif text == SETTINGS_BTN:
         await on_settings(update, context)
+    elif text == WALLET_BTN:
+        await reply_ephemeral(update, "Wallet:", reply_markup=wallet_reply_keyboard())
     elif text == HISTORY_BTN:
         await on_history(update, context)
     elif text == MY_ADS_BTN:

@@ -27,9 +27,9 @@ def deposit_instructions(address: str) -> str:
     return (
         "💰 Deposit TRX\n"
         f"{sep}\n"
-        "Click to copy your deposit address\\:\n"
+        "Click to copy your deposit address\\:\n\n"
         f"`{_esc(address)}`\n\n"
-        "⏳ Your balance is credited after confirmations\\."
+        "⏳ Your balance is credited after automatic confirmations\\."
     )
 
 
@@ -202,12 +202,12 @@ def create_campaign_created(campaign_id: int) -> str:
 
 
 # ==================== My Ads (Owner view) ====================
-def my_ad_overview(title: str, bot_username: str, amount_per_referral: Decimal, balance: Decimal, is_active: bool) -> str:
+def my_ad_overview(title: str, bot_username: str, amount_per_referral: Decimal, balance: Decimal, is_active: bool, idx: int, total: int) -> str:
     sep = get_separator()
     status_emoji = "🟢" if is_active else "⏸️"
     status_text = "Active" if is_active else "Paused"
     return (
-        "📢 My Ad\n"
+        f"📢 My Ad \\({idx}/{total}\\)\n"
         f"{sep}\n"
         f"Title\: `{_esc(title)}`\n"
         f"Bot\: `@{_esc(bot_username)}`\n"
@@ -219,15 +219,15 @@ def my_ad_overview(title: str, bot_username: str, amount_per_referral: Decimal, 
 
 def myads_recharge_ask_amount() -> str:
     return (
-        "🔋 Enter amount to recharge this ad, or choose a preset below\.\n"
-        "You can cancel anytime\."
+        "🔋 Enter amount to recharge this ad, or choose a preset below\\.\n"
+        "You can cancel anytime\\."
     )
 
 
 def myads_recharge_confirm(amount: Decimal) -> str:
     return (
         "✅ Confirm Recharge\n"
-        f"Amount\: `{format_trx_escaped(amount)} TRX`"
+        f"Amount\\: `{format_trx_escaped(amount)} TRX`"
     )
 
 
@@ -238,4 +238,4 @@ def myads_recharge_done(campaign_id: int, amount: Decimal) -> str:
 
 
 def myads_recharge_cancelled() -> str:
-    return "❌ Recharge cancelled\."
+    return "❌ Recharge cancelled\\."

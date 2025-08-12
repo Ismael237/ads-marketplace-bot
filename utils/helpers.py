@@ -44,13 +44,13 @@ def generate_validation_link(length: int = 32) -> str:
     return ''.join(secrets.choice(characters) for _ in range(length))
 
 
-def format_trx_amount(amount: float, decimals: int = 6) -> str:
+def format_trx_amount(amount: float, decimals: int = 2) -> str:
     """Format TRX amount for display"""
     return f"{amount:.{decimals}f} TRX"
 
 
 def format_trx_escaped(amount) -> str:
-    """Format a TRX numeric value to 6 decimals and escape for MarkdownV2. No unit."""
+    """Format a TRX numeric value to 2 decimals and escape for MarkdownV2. No unit."""
     try:
         num = float(amount)
     except Exception:
@@ -58,12 +58,12 @@ def format_trx_escaped(amount) -> str:
             num = float(Decimal(str(amount)))
         except Exception:
             num = 0.0
-    return escape_markdown_v2(f"{num:.6f}")
+    return escape_markdown_v2(f"{num:.2f}")
 
 
 def calculate_commission(amount: float, rate: float) -> float:
     """Calculate commission amount based on rate"""
-    return round(amount * rate, 6)
+    return round(amount * rate, 2)
 
 
 def paginate_query(query, page: int = 1, per_page: int = 10):

@@ -8,7 +8,7 @@ from database.database import get_db_session
 from database.models import User, Withdrawal, WithdrawalStatus, Transaction, TransactionType, BalanceType
 from services.wallet_service import WalletService
 from bot.utils import reply_ephemeral
-from bot.keyboards import main_reply_keyboard, wallet_menu_keyboard, withdraw_reply_keyboard, cancel_withdraw_keyboard, withdraw_confirm_inline_keyboard, CANCEL_WITHDRAW_BTN
+from bot.keyboards import main_reply_keyboard, withdraw_reply_keyboard, cancel_withdraw_keyboard, withdraw_confirm_inline_keyboard, CANCEL_WITHDRAW_BTN
 from bot import messages
 from utils.validators import is_valid_tron_address
 import config
@@ -23,7 +23,7 @@ async def deposit(update: Update, context: ContextTypes.DEFAULT_TYPE):
         ws = WalletService(db)
         address = ws.get_user_wallet_address(user)
         text = messages.deposit_instructions(address)
-        await reply_ephemeral(update, text, reply_markup=wallet_menu_keyboard(address))
+        await reply_ephemeral(update, text)
 
 
 WITHDRAW_STATE_KEY = "withdraw_state"

@@ -18,6 +18,7 @@ MAIN_MENU_BTN = "🏠 Main Menu"
 BACK_BTN = "🔙 Back"
 CANCEL_BTN = "❌ Cancel"
 CANCEL_WITHDRAW_BTN = "❌ Cancel Withdrawal"
+CANCEL_RECHARGE_BTN = "❌ Cancel Recharge"
 SKIP_BTN = "⏭️ Skip"
 CANCEL_CREATE_CAMPAIGN_BTN = "❌ Cancel Creation"
 
@@ -31,6 +32,12 @@ WITHDRAW_100_BTN = "100 TRX"
 WITHDRAW_500_BTN = "500 TRX"
 WITHDRAW_1000_BTN = "1,000 TRX"
 WITHDRAW_5000_BTN = "5,000 TRX"
+
+# Recharge Buttons
+RECHARGE_10_BTN = "10 TRX"
+RECHARGE_50_BTN = "50 TRX"
+RECHARGE_100_BTN = "100 TRX"
+CONFIRM_RECHARGE_BTN = "✅ Confirm Recharge"
 
 # History Buttons
 ALL_TRANSACTIONS_BTN = "📋 All Transactions"
@@ -53,9 +60,9 @@ def main_reply_keyboard():
     """Main menu keyboard with primary bot functions (persistent)."""
     keyboard = [
         [BROWSE_BTN, BALANCE_BTN],
+        [MY_ADS_BTN],
         [WALLET_BTN, REFERRAL_BTN],
         [SETTINGS_BTN],
-        [MY_ADS_BTN],
     ]
     return ReplyKeyboardMarkup(
         keyboard,
@@ -99,12 +106,48 @@ def cancel_withdraw_keyboard():
         one_time_keyboard=False
     )
 
+def cancel_recharge_keyboard():
+    """Cancel recharge keyboard"""
+    keyboard = [
+        [CANCEL_RECHARGE_BTN]
+    ]
+    return ReplyKeyboardMarkup(
+        keyboard,
+        resize_keyboard=True,
+        one_time_keyboard=False
+    )
+
 def history_reply_keyboard():
     """History submenu keyboard"""
     keyboard = [
         [ALL_TRANSACTIONS_BTN],
         [DEPOSITS_ONLY_BTN, WITHDRAWALS_ONLY_BTN],
         [MAIN_MENU_BTN]
+    ]
+    return ReplyKeyboardMarkup(
+        keyboard,
+        resize_keyboard=True,
+        one_time_keyboard=False
+    )
+
+def recharge_reply_keyboard():
+    """Recharge submenu with predefined amounts"""
+    keyboard = [
+        [RECHARGE_10_BTN],
+        [RECHARGE_50_BTN, RECHARGE_100_BTN],
+        [CANCEL_RECHARGE_BTN],
+    ]
+    return ReplyKeyboardMarkup(
+        keyboard,
+        resize_keyboard=True,
+        one_time_keyboard=False
+    )
+
+def confirm_recharge_keyboard():
+    """Show confirm/cancel for recharge"""
+    keyboard = [
+        [CONFIRM_RECHARGE_BTN],
+        [CANCEL_RECHARGE_BTN]
     ]
     return ReplyKeyboardMarkup(
         keyboard,

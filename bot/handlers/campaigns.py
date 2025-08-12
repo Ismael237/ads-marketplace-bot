@@ -3,9 +3,10 @@ from __future__ import annotations
 from decimal import Decimal
 from telegram import Update
 from telegram.ext import ContextTypes
+from telegram.constants import ParseMode
 
 from database.database import get_db_session
-from database.models import User, Campaign
+from database.models import User, Campaign, Transaction, TransactionType, BalanceType
 from services.campaign_service import CampaignService
 from bot.keyboards import (
     SKIP_BTN,
@@ -14,6 +15,9 @@ from bot.keyboards import (
     cancel_create_campaign_keyboard,
     title_step_keyboard,
     create_campaign_confirm_inline_keyboard,
+    recharge_reply_keyboard,
+    cancel_recharge_keyboard,
+    confirm_recharge_keyboard,
 )
 from bot.utils import reply_ephemeral
 from bot import messages
@@ -32,6 +36,14 @@ CREATE_CAMPAIGN_TITLE_KEY = "create_campaign_title"
 MYADS_RECHARGE_STATE_KEY = "myads_recharge_state"
 MYADS_RECHARGE_CAMP_ID_KEY = "myads_recharge_camp_id"
 MYADS_RECHARGE_AMOUNT_KEY = "myads_recharge_amount"
+
+
+def _parse_amount_text(text: str):
+    try:
+        t = (text or "").upper().replace("TRX", "").replace(",", "").strip()
+        return Decimal(t)
+    except Exception:
+        return None
 
 
 async def create_campaign(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -141,7 +153,6 @@ async def on_create_campaign_forward(update: Update, context: ContextTypes.DEFAU
     if state != "ask_forward":
         return
     bot_username = context.user_data.get(CREATE_CAMPAIGN_USERNAME_KEY) or ""
-    logger.info(f"Update message: {update.effective_message.forward_origin}")
     origin_username = _get_forward_origin_username(update.effective_message)
     if not origin_username or origin_username.lower() != bot_username.lower():
         await reply_ephemeral(update, messages.forward_not_from_expected())
@@ -203,7 +214,7 @@ def _my_ads_inline_keyboard(index: int, total: int, camp_id: int, is_active: boo
     nav = []
     if index > 0:
         nav.append(InlineKeyboardButton("⬅️ Prev", callback_data=f"myads_prev_{index-1}"))
-    nav.append(InlineKeyboardButton(f"{index+1}/{total}", callback_data="noop"))
+
     if index < total - 1:
         nav.append(InlineKeyboardButton("➡️ Next", callback_data=f"myads_next_{index+1}"))
     if nav:
@@ -230,7 +241,7 @@ async def show_my_ads(update: Update, context: ContextTypes.DEFAULT_TYPE, page: 
             camp.is_active = False
             db.commit()
         kb = _my_ads_inline_keyboard(idx, len(items), camp.id, bool(camp.is_active))
-        text = messages.my_ad_overview(camp.title, camp.bot_username, camp.amount_per_referral, camp.balance, bool(camp.is_active))
+        text = messages.my_ad_overview(camp.title, camp.bot_username, camp.amount_per_referral, camp.balance, bool(camp.is_active), idx + 1, len(items))
         await reply_ephemeral(update, text, reply_markup=kb)
 
 
@@ -262,9 +273,8 @@ async def on_my_ads_pagination(update: Update, context: ContextTypes.DEFAULT_TYP
             camp.is_active = False
             db.commit()
         kb = _my_ads_inline_keyboard(idx, len(items), camp.id, bool(camp.is_active))
-        text = messages.my_ad_overview(camp.title, camp.bot_username, camp.amount_per_referral, camp.balance, bool(camp.is_active))
-        await query.edit_message_reply_markup(reply_markup=None)
-        await query.message.reply_markdown_v2(text, reply_markup=kb)
+        text = messages.my_ad_overview(camp.title, camp.bot_username, camp.amount_per_referral, camp.balance, bool(camp.is_active), idx + 1, len(items))
+        await query.edit_message_text(text, reply_markup=kb, parse_mode=ParseMode.MARKDOWN_V2)
 
 
 async def on_my_ads_actions(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -309,7 +319,7 @@ async def on_my_ads_actions(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     idx = i
                     break
             kb = _my_ads_inline_keyboard(idx, len(items), camp.id, bool(camp.is_active))
-            text = messages.my_ad_overview(camp.title, camp.bot_username, camp.amount_per_referral, camp.balance, bool(camp.is_active))
+            text = messages.my_ad_overview(camp.title, camp.bot_username, camp.amount_per_referral, camp.balance, bool(camp.is_active), idx + 1, len(items))
             await reply_ephemeral(update, text, reply_markup=kb)
             return
         # Start recharge flow
@@ -323,16 +333,8 @@ async def on_my_ads_actions(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 return
             context.user_data[MYADS_RECHARGE_STATE_KEY] = "ask_amount"
             context.user_data[MYADS_RECHARGE_CAMP_ID_KEY] = camp_id
-            # Show ask + presets
-            from telegram import InlineKeyboardButton, InlineKeyboardMarkup
-            presets = [
-                [InlineKeyboardButton("+10 TRX", callback_data="myads_recharge_preset_10")],
-                [InlineKeyboardButton("+50 TRX", callback_data="myads_recharge_preset_50")],
-                [InlineKeyboardButton("+100 TRX", callback_data="myads_recharge_preset_100")],
-                [InlineKeyboardButton("❌ Cancel", callback_data="myads_recharge_cancel")],
-            ]
             await query.edit_message_reply_markup(reply_markup=None)
-            await query.message.reply_markdown_v2(messages.myads_recharge_ask_amount(), reply_markup=InlineKeyboardMarkup(presets))
+            await reply_ephemeral(update, messages.myads_recharge_ask_amount(), reply_markup=recharge_reply_keyboard())
             return
 
 
@@ -341,22 +343,21 @@ async def on_myads_recharge_text(update: Update, context: ContextTypes.DEFAULT_T
     if state != "ask_amount":
         return
     text_in = (update.effective_message.text or "").strip()
-    from decimal import Decimal as D
-    try:
-        amount = D(text_in)
-        if amount <= 0:
-            raise ValueError()
-    except Exception:
+    # parse tolerant amount
+    amount = _parse_amount_text(text_in)
+    min_recharge = Decimal(str(getattr(config, "MIN_RECHARGE_TRX", 1)))
+    if not amount or amount < min_recharge:
         await reply_ephemeral(update, messages.myads_recharge_ask_amount())
         return
+    # Optional: check against user's ad_balance now for better UX
+    with get_db_session() as db:
+        user = db.query(User).filter(User.telegram_id == str(update.effective_user.id)).first()
+        if not user or user.ad_balance < amount:
+            await reply_ephemeral(update, "Insufficient ad\\_balance\\. Enter a lower amount or cancel\\.")
+            return
     context.user_data[MYADS_RECHARGE_AMOUNT_KEY] = amount
-    # Confirm inline
-    from telegram import InlineKeyboardButton, InlineKeyboardMarkup
-    kb = InlineKeyboardMarkup([
-        [InlineKeyboardButton("✅ Confirm", callback_data="myads_recharge_confirm")],
-        [InlineKeyboardButton("❌ Cancel", callback_data="myads_recharge_cancel")],
-    ])
-    await reply_ephemeral(update, messages.myads_recharge_confirm(amount), reply_markup=kb)
+    # Ask for confirmation using reply keyboard
+    await reply_ephemeral(update, messages.myads_recharge_confirm(amount), reply_markup=confirm_recharge_keyboard())
 
 
 async def on_myads_recharge_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -365,21 +366,10 @@ async def on_myads_recharge_callback(update: Update, context: ContextTypes.DEFAU
         return
     await query.answer()
     data = query.data
-    # Handle presets
+    # Inline presets are no longer used; keep for backward compatibility if present
     if data.startswith("myads_recharge_preset_"):
-        preset = data.rsplit("_", 1)[1]
-        try:
-            amount = Decimal(preset)
-        except Exception:
-            return
-        context.user_data[MYADS_RECHARGE_AMOUNT_KEY] = amount
-        from telegram import InlineKeyboardButton, InlineKeyboardMarkup
-        kb = InlineKeyboardMarkup([
-            [InlineKeyboardButton("✅ Confirm", callback_data="myads_recharge_confirm")],
-            [InlineKeyboardButton("❌ Cancel", callback_data="myads_recharge_cancel")],
-        ])
         await query.edit_message_reply_markup(reply_markup=None)
-        await query.message.reply_markdown_v2(messages.myads_recharge_confirm(amount), reply_markup=kb)
+        await query.message.reply_markdown_v2(messages.myads_recharge_ask_amount())
         return
     if data == "myads_recharge_cancel":
         context.user_data.pop(MYADS_RECHARGE_STATE_KEY, None)
@@ -389,35 +379,72 @@ async def on_myads_recharge_callback(update: Update, context: ContextTypes.DEFAU
         await query.message.reply_markdown_v2(messages.myads_recharge_cancelled())
         return
     if data == "myads_recharge_confirm":
-        camp_id = context.user_data.get(MYADS_RECHARGE_CAMP_ID_KEY)
-        amount = context.user_data.get(MYADS_RECHARGE_AMOUNT_KEY)
-        if not camp_id or not amount:
-            return
-        from decimal import Decimal as D
-        try:
-            amt = D(str(amount))
-            if amt <= 0:
-                raise ValueError()
-        except Exception:
-            return
-        with get_db_session() as db:
-            user = db.query(User).filter(User.telegram_id == str(update.effective_user.id)).first()
-            if not user:
-                return
-            camp = db.query(Campaign).get(int(camp_id))
-            if not camp or camp.owner_id != user.id:
-                return
-            if user.ad_balance < amt:
-                await query.message.reply_markdown_v2("Insufficient ad\\_balance")
-                return
-            user.ad_balance -= amt
-            camp.balance += amt
-            db.commit()
-        context.user_data.pop(MYADS_RECHARGE_STATE_KEY, None)
-        context.user_data.pop(MYADS_RECHARGE_CAMP_ID_KEY, None)
-        context.user_data.pop(MYADS_RECHARGE_AMOUNT_KEY, None)
-        await query.message.reply_markdown_v2(messages.myads_recharge_done(int(camp_id), amt))
+        # For legacy inline confirm, fall back to text-based confirm handler
+        await on_myads_recharge_confirm_text(update, context)
         return
+
+
+async def on_myads_recharge_confirm_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Confirm recharge via reply keyboard text action."""
+    camp_id = context.user_data.get(MYADS_RECHARGE_CAMP_ID_KEY)
+    amount = context.user_data.get(MYADS_RECHARGE_AMOUNT_KEY)
+    if not camp_id or not amount:
+        return
+    from decimal import Decimal as D
+    try:
+        amt = D(str(amount))
+        if amt <= 0:
+            raise ValueError()
+    except Exception:
+        return
+    with get_db_session() as db:
+        user = db.query(User).filter(User.telegram_id == str(update.effective_user.id)).first()
+        if not user:
+            return
+        camp = db.query(Campaign).get(int(camp_id))
+        if not camp or camp.owner_id != user.id:
+            return
+        if user.ad_balance < amt:
+            await reply_ephemeral(update, "Insufficient ad\\_balance")
+            return
+        user.ad_balance -= amt
+        camp.balance += amt
+        # Auto-activate if recharged to meet the threshold
+        if camp.balance >= camp.amount_per_referral:
+            camp.is_active = True
+        # Log transaction as campaign_spend for history (investments)
+        Transaction.create(
+            db,
+            user_id=user.id,
+            type=TransactionType.campaign_spend,
+            amount_trx=amt,
+            balance_type=BalanceType.ad_balance,
+            reference_id=str(camp.id),
+            description="Campaign recharge",
+        )
+        db.commit()
+    # Clear state
+    context.user_data.pop(MYADS_RECHARGE_STATE_KEY, None)
+    context.user_data.pop(MYADS_RECHARGE_CAMP_ID_KEY, None)
+    context.user_data.pop(MYADS_RECHARGE_AMOUNT_KEY, None)
+    # Refresh the campaign card view
+    with get_db_session() as db:
+        user = db.query(User).filter(User.telegram_id == str(update.effective_user.id)).first()
+        if not user:
+            return
+        q = db.query(Campaign).filter(Campaign.owner_id == user.id).order_by(Campaign.id.desc())
+        items = q.all()
+        # find index of the recharged campaign
+        idx = 0
+        for i, it in enumerate(items):
+            if it.id == int(camp_id):
+                idx = i
+                camp = it
+                break
+        kb = _my_ads_inline_keyboard(idx, len(items), camp.id, bool(camp.is_active))
+        text = messages.my_ad_overview(camp.title, camp.bot_username, camp.amount_per_referral, camp.balance, bool(camp.is_active), idx + 1, len(items))
+        await reply_ephemeral(update, "My Ads:", reply_markup=ads_reply_keyboard())
+        await reply_ephemeral(update, text, reply_markup=kb)
 
 
 async def pause_campaign(update: Update, context: ContextTypes.DEFAULT_TYPE):

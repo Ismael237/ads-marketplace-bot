@@ -8,6 +8,7 @@ from database.models import User
 from bot.utils import reply_ephemeral
 from bot import messages
 import config
+from utils.helpers import escape_markdown_v2 as _esc
 
 from bot.keyboards import (
     BROWSE_BTN,
@@ -39,6 +40,8 @@ from bot.keyboards import (
     ads_reply_keyboard,
     withdraw_reply_keyboard,
     wallet_reply_keyboard,
+    CANCEL_RECHARGE_BTN,
+    CONFIRM_RECHARGE_BTN,
 )
 
 from bot.handlers.participation import browse_bots
@@ -60,7 +63,10 @@ from bot.handlers.campaigns import (
     create_campaign as create_campaign_handler,
     show_my_ads,
     on_myads_recharge_text,
+    on_myads_recharge_confirm_text,
     MYADS_RECHARGE_STATE_KEY,
+    MYADS_RECHARGE_AMOUNT_KEY,
+    MYADS_RECHARGE_CAMP_ID_KEY,
 )
 from bot.handlers.referral import referral as referral_handler
 from bot.handlers.history import history as history_handler, show_history
@@ -125,7 +131,7 @@ async def on_help(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def on_support(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await reply_ephemeral(update, f"Support\\: Contact @{config.TELEGRAM_ADMIN_USERNAME or 'admin'}")
+    await reply_ephemeral(update, f"Support\\: Contact @{_esc(config.TELEGRAM_ADMIN_USERNAME or 'admin')}")
 
 
 async def on_about(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -145,11 +151,25 @@ async def on_main_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def handle_menu_selection(update, context):
+    text = (update.message.text or "").strip()
+
+    # Handle Cancel Recharge first (reply keyboard)
+    if text == CANCEL_RECHARGE_BTN:
+        context.user_data.pop(MYADS_RECHARGE_STATE_KEY, None)
+        context.user_data.pop(MYADS_RECHARGE_AMOUNT_KEY, None)
+        context.user_data.pop(MYADS_RECHARGE_CAMP_ID_KEY, None)
+        await reply_ephemeral(update, messages.myads_recharge_cancelled(), reply_markup=ads_reply_keyboard())
+        return
+
+    # Handle Confirm Recharge via reply keyboard
+    if text == CONFIRM_RECHARGE_BTN:
+        await on_myads_recharge_confirm_text(update, context)
+        return
+
     # Route My Ads recharge free-text amount entry if flow is active
     if context.user_data.get(MYADS_RECHARGE_STATE_KEY) == "ask_amount":
         await on_myads_recharge_text(update, context)
         return
-    text = (update.message.text or "").strip()
 
     # If user is in withdraw flow, delegate text to wallet flow
     # Route campaign creation first
@@ -178,6 +198,7 @@ async def handle_menu_selection(update, context):
         await on_history(update, context)
     elif text == MY_ADS_BTN:
         await reply_ephemeral(update, "My Ads:", reply_markup=ads_reply_keyboard())
+        await show_my_ads(update, context, page=1)
     elif text == ADS_CREATE_BTN:
         # start assistant mode
         context.args = []

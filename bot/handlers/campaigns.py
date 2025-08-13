@@ -30,6 +30,7 @@ CREATE_CAMPAIGN_STATE_KEY = "create_campaign_state"
 CREATE_CAMPAIGN_LINK_KEY = "create_campaign_link"
 CREATE_CAMPAIGN_USERNAME_KEY = "create_campaign_username"
 CREATE_CAMPAIGN_TITLE_KEY = "create_campaign_title"
+CREATE_CAMPAIGN_BOT_NAME_KEY = "create_campaign_bot_name"
 
 # ===== My Ads Recharge flow keys =====
 MYADS_RECHARGE_STATE_KEY = "myads_recharge_state"
@@ -68,6 +69,8 @@ async def create_campaign(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 amount_per_referral=amount_dec,
             )
             await reply_ephemeral(update, messages.create_campaign_created(camp.id))
+        # After successful creation, show user's ads list
+        await show_my_ads(update, context)
         return
     # Assistant mode: ask for link/username first
     context.user_data[CREATE_CAMPAIGN_STATE_KEY] = "ask_link"
@@ -112,6 +115,30 @@ def _get_forward_origin_username(msg) -> str | None:
     return None
 
 
+def _get_forward_origin_title(msg) -> str | None:
+    """Try to extract a human-friendly bot name (title/first_name) from forward origin."""
+    if not msg:
+        return None
+    try:
+        fo = getattr(msg, "forward_origin", None)
+        if fo is not None:
+            if getattr(fo, "type", None) == "user":
+                sender_user = getattr(fo, "sender_user", None)
+                if sender_user:
+                    first = getattr(sender_user, "first_name", None) or ""
+                    last = getattr(sender_user, "last_name", None) or ""
+                    full = (f"{first} {last}").strip()
+                    return full or getattr(sender_user, "username", None)
+            elif getattr(fo, "type", None) == "chat":
+                chat = getattr(fo, "chat", None)
+                if chat:
+                    title = getattr(chat, "title", None)
+                    return title or getattr(chat, "username", None)
+    except Exception:
+        logger.error("Failed to extract forward origin title")
+    return None
+
+
 async def on_create_campaign_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
     state = context.user_data.get(CREATE_CAMPAIGN_STATE_KEY)
     text_in = (update.effective_message.text or "").strip()
@@ -122,20 +149,24 @@ async def on_create_campaign_text(update: Update, context: ContextTypes.DEFAULT_
             return
         context.user_data[CREATE_CAMPAIGN_USERNAME_KEY] = username
         context.user_data[CREATE_CAMPAIGN_LINK_KEY] = text_in
+        # Provisional display name shown to the user until we verify via forward
+        provisional_name = f"@{username}"
+        context.user_data[CREATE_CAMPAIGN_BOT_NAME_KEY] = provisional_name
         context.user_data[CREATE_CAMPAIGN_STATE_KEY] = "ask_forward"
-        await reply_ephemeral(update, messages.create_campaign_ask_forward(username), reply_markup=cancel_create_campaign_keyboard())
+        await reply_ephemeral(update, messages.create_campaign_ask_forward(text_in), reply_markup=cancel_create_campaign_keyboard(), disable_web_page_preview=True)
         return
     elif state == "ask_title":
         if text_in == SKIP_BTN:
-            # use default = bot_username
+            # use default = bot display name if available, else username
+            bot_name = context.user_data.get(CREATE_CAMPAIGN_BOT_NAME_KEY)
             username = context.user_data.get(CREATE_CAMPAIGN_USERNAME_KEY) or ""
-            context.user_data[CREATE_CAMPAIGN_TITLE_KEY] = username
+            context.user_data[CREATE_CAMPAIGN_TITLE_KEY] = bot_name or username
         else:
             context.user_data[CREATE_CAMPAIGN_TITLE_KEY] = text_in
         # show confirm
         bot_link = context.user_data.get(CREATE_CAMPAIGN_LINK_KEY) or ""
         bot_username = context.user_data.get(CREATE_CAMPAIGN_USERNAME_KEY) or ""
-        title = context.user_data.get(CREATE_CAMPAIGN_TITLE_KEY) or bot_username
+        title = context.user_data.get(CREATE_CAMPAIGN_TITLE_KEY) or (context.user_data.get(CREATE_CAMPAIGN_BOT_NAME_KEY) or bot_username)
         amount_dec = Decimal(str(config.AMOUNT_PER_REFERRAL))
         context.user_data[CREATE_CAMPAIGN_STATE_KEY] = "confirm"
         await reply_ephemeral(
@@ -158,7 +189,9 @@ async def on_create_campaign_forward(update: Update, context: ContextTypes.DEFAU
         return
     # Move to title step
     context.user_data[CREATE_CAMPAIGN_STATE_KEY] = "ask_title"
-    await reply_ephemeral(update, messages.create_campaign_ask_title(bot_username), reply_markup=title_step_keyboard())
+    bot_name = _get_forward_origin_title(update.effective_message) or bot_username
+    context.user_data[CREATE_CAMPAIGN_BOT_NAME_KEY] = bot_name
+    await reply_ephemeral(update, messages.create_campaign_ask_title(bot_name), reply_markup=title_step_keyboard())
 
 
 async def on_create_campaign_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -197,6 +230,8 @@ async def on_create_campaign_callback(update: Update, context: ContextTypes.DEFA
             context.user_data.pop(k, None)
         await query.edit_message_reply_markup(reply_markup=None)
         await query.message.reply_markdown_v2(messages.create_campaign_created(camp.id), reply_markup=ads_reply_keyboard())
+        # Show updated list of user's campaigns
+        await show_my_ads(update, context)
         return
 
 
@@ -240,7 +275,7 @@ async def show_my_ads(update: Update, context: ContextTypes.DEFAULT_TYPE, page: 
             camp.is_active = False
             db.commit()
         kb = _my_ads_inline_keyboard(idx, len(items), camp.id, bool(camp.is_active))
-        text = messages.my_ad_overview(camp.title, camp.bot_username, camp.amount_per_referral, camp.balance, bool(camp.is_active), camp.referral_count, idx + 1, len(items))
+        text = messages.my_ad_overview(camp.title, camp.bot_username, camp.bot_link, camp.amount_per_referral, camp.balance, bool(camp.is_active), camp.referral_count, idx + 1, len(items))
         await reply_ephemeral(update, text, reply_markup=kb)
 
 
@@ -272,7 +307,7 @@ async def on_my_ads_pagination(update: Update, context: ContextTypes.DEFAULT_TYP
             camp.is_active = False
             db.commit()
         kb = _my_ads_inline_keyboard(idx, len(items), camp.id, bool(camp.is_active))
-        text = messages.my_ad_overview(camp.title, camp.bot_username, camp.amount_per_referral, camp.balance, bool(camp.is_active), camp.referral_count, idx + 1, len(items))
+        text = messages.my_ad_overview(camp.title, camp.bot_username, camp.bot_link, camp.amount_per_referral, camp.balance, bool(camp.is_active), camp.referral_count, idx + 1, len(items))
         await query.edit_message_text(text, reply_markup=kb, parse_mode=ParseMode.MARKDOWN_V2)
 
 
@@ -318,7 +353,7 @@ async def on_my_ads_actions(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     idx = i
                     break
             kb = _my_ads_inline_keyboard(idx, len(items), camp.id, bool(camp.is_active))
-            text = messages.my_ad_overview(camp.title, camp.bot_username, camp.amount_per_referral, camp.balance, bool(camp.is_active), camp.referral_count, idx + 1, len(items))
+            text = messages.my_ad_overview(camp.title, camp.bot_username, camp.bot_link, camp.amount_per_referral, camp.balance, bool(camp.is_active), camp.referral_count, idx + 1, len(items))
             await reply_ephemeral(update, text, reply_markup=kb)
             return
         # Start recharge flow
@@ -478,7 +513,7 @@ async def on_myads_recharge_confirm_text(update: Update, context: ContextTypes.D
         if was_activated:
             broadcast = messages.campaign_activated_broadcast()
             with get_db_session() as db:
-                users = db.query(User).all()
+                users = db.query(User).filter(User.telegram_id != str(update.effective_user.id)).all()
                 for u in users:
                     try:
                         tid = int(u.telegram_id)
@@ -502,7 +537,7 @@ async def on_myads_recharge_confirm_text(update: Update, context: ContextTypes.D
                 camp = it
                 break
         kb = _my_ads_inline_keyboard(idx, len(items), camp.id, bool(camp.is_active))
-        text = messages.my_ad_overview(camp.title, camp.bot_username, camp.amount_per_referral, camp.balance, bool(camp.is_active), camp.referral_count, idx + 1, len(items))
+        text = messages.my_ad_overview(camp.title, camp.bot_username, camp.bot_link, camp.amount_per_referral, camp.balance, bool(camp.is_active), camp.referral_count, idx + 1, len(items))
         await reply_ephemeral(update, "My Ads:", reply_markup=ads_reply_keyboard())
         await reply_ephemeral(update, text, reply_markup=kb)
 

@@ -55,6 +55,7 @@ from bot.handlers.wallet import (
     WITHDRAW_STATE_KEY,
 )
 from bot.handlers.campaigns import (
+    CREATE_CAMPAIGN_BOT_NAME_KEY,
     CREATE_CAMPAIGN_LINK_KEY,
     CREATE_CAMPAIGN_STATE_KEY,
     CREATE_CAMPAIGN_TITLE_KEY,
@@ -107,6 +108,7 @@ async def on_cancel_create_campaign(update: Update, context: ContextTypes.DEFAUL
     context.user_data.pop(CREATE_CAMPAIGN_LINK_KEY, None)
     context.user_data.pop(CREATE_CAMPAIGN_USERNAME_KEY, None)
     context.user_data.pop(CREATE_CAMPAIGN_TITLE_KEY, None)
+    context.user_data.pop(CREATE_CAMPAIGN_BOT_NAME_KEY, None)
     await reply_ephemeral(update, messages.create_campaign_cancelled(), reply_markup=ads_reply_keyboard())
 
 

@@ -167,18 +167,19 @@ async def on_withdraw_callback(update: Update, context: ContextTypes.DEFAULT_TYP
                 to_address=to_address,
                 status=WithdrawalStatus.pending,
             )
+            w_id = w.id
             Transaction.create(
                 db,
                 user_id=user.id,
                 type=TransactionType.withdrawal,
                 amount_trx=amount,
                 balance_type=BalanceType.earn_balance,
-                reference_id=str(w.id),
+                reference_id=str(w_id),
                 description="Withdrawal requested",
             )
         context.user_data.pop(WITHDRAW_STATE_KEY, None)
         await query.edit_message_reply_markup(reply_markup=None)
-        await query.message.reply_markdown_v2(f"Withdrawal request created id\\={w.id}")
+        await query.message.reply_markdown_v2(f"Withdrawal request created id\\={w_id}", reply_markup=main_reply_keyboard())
         return
 
 

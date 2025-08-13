@@ -10,9 +10,9 @@ from utils.helpers import escape_markdown_v2
 logger = get_logger("bot.utils")
 
 
-async def reply_ephemeral(update: Update, text: str, reply_markup: ReplyKeyboardMarkup = None):
+async def reply_ephemeral(update: Update, text: str, reply_markup: ReplyKeyboardMarkup = None, disable_web_page_preview: bool = False):
     if update.effective_message:
-        await update.effective_message.reply_markdown_v2(text, reply_markup=reply_markup)
+        await update.effective_message.reply_markdown_v2(text, reply_markup=reply_markup, disable_web_page_preview=disable_web_page_preview)
 
 
 def get_user_identity(update: Update):

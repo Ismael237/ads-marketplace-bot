@@ -59,8 +59,8 @@ ADS_LIST_BTN = "📑 List My Ads"
 def main_reply_keyboard():
     """Main menu keyboard with primary bot functions (persistent)."""
     keyboard = [
-        [BROWSE_BTN, BALANCE_BTN],
-        [MY_ADS_BTN],
+        [BROWSE_BTN, MY_ADS_BTN],
+        [BALANCE_BTN, DEPOSIT_BTN],
         [WALLET_BTN, REFERRAL_BTN],
         [SETTINGS_BTN],
     ]

@@ -76,15 +76,15 @@ def withdraw_cancelled() -> str:
     return "❌ Withdrawal cancelled\\."
 
 
-def browse_campaign(camp_title: str, bot_username: str, amount_per_referral: Decimal) -> str:
+def browse_campaign(camp_title: str, amount_per_referral: Decimal) -> str:
     sep = get_separator()
     return (
         "📣 Campaign\n"
         f"{sep}\n"
         f"Title\\: `{_esc(camp_title)}`\n"
-        f"Bot\\: `@{_esc(bot_username)}`\n"
         f"Reward per task\\: `{format_trx_escaped(amount_per_referral)} TRX`\n\n"
-        "Tap Message Bot to start, then forward a recent message back here\\."
+        "1️⃣ Tap Message Bot to start\\.\n"
+        "2️⃣ Forward a recent message back here to participate\\.\n"
     )
 
 
@@ -103,16 +103,19 @@ def campaign_insufficient_balance() -> str:
 def referral_overview(bot_username: str, referral_code: str, task_rate: float, deposit_rate: float, referral_count: int, total_earned: Decimal) -> str:
     sep = get_separator()
     link = f"https://t.me/{_esc(bot_username)}?start={_esc(referral_code)}"
+    task_rate = _esc(task_rate)
+    deposit_rate = _esc(deposit_rate)
     return (
         "👥 Referral Program\n"
         f"{sep}\n"
-        f"Your referral link\\(click to copy\\)\\:\n`{link}`\n\n"
+        f"Your referral link\\(click to copy\\)\\:\n\n"
+        f"`{_esc(link)}`\n\n"
         f"Stats\\:\n"
         f"• Referrals\\: `{referral_count}`\n"
         f"• Total earned\\: `{format_trx_escaped(total_earned)} TRX`\n\n"
         f"Commissions\\:\n"
-        f"• Tasks\\: `{format_trx_escaped(task_rate * 100)}%`\n"
-        f"• Deposits\\: `{format_trx_escaped(deposit_rate * 100)}%`"
+        f"• Tasks\\: `{task_rate}%`\n"
+        f"• Ads spending\\: `{deposit_rate}%`"
     )
 
 
@@ -176,19 +179,20 @@ def create_campaign_ask_link() -> str:
     )
 
 
-def create_campaign_ask_forward(bot_username: str) -> str:
+def create_campaign_ask_forward(bot_link: str) -> str:
     return (
         "📨 Please forward a recent message from the target bot here to verify it works\n"
-        f"Expected bot\\: `@{_esc(bot_username)}`"
+        "Bot link\\:\n"
+        f"{_esc(bot_link)}"
     )
 
 
-def create_campaign_ask_title(bot_username: str) -> str:
+def create_campaign_ask_title(default_title: str) -> str:
     sep = get_separator()
     return (
-        "📝 Enter a campaign title, or tap Skip to use the bot name\n"
+        "📝 Enter a campaign title, or tap Skip to use the default title\n"
         f"{sep}\n"
-        f"Default\\: `{_esc(bot_username)}`"
+        f"Default\\: `{_esc(default_title)}`"
     )
 
 
@@ -213,7 +217,7 @@ def create_campaign_created(campaign_id: int) -> str:
 
 
 # ==================== My Ads (Owner view) ====================
-def my_ad_overview(title: str, bot_username: str, amount_per_referral: Decimal, balance: Decimal, is_active: bool, referral_count: int, idx: int, total: int) -> str:
+def my_ad_overview(title: str, bot_username: str, bot_link: str, amount_per_referral: Decimal, balance: Decimal, is_active: bool, referral_count: int, idx: int, total: int) -> str:
     sep = get_separator()
     status_emoji = "🟢" if is_active else "⏸️"
     status_text = "Active" if is_active else "Paused"
@@ -222,6 +226,7 @@ def my_ad_overview(title: str, bot_username: str, amount_per_referral: Decimal, 
         f"{sep}\n"
         f"Title\\: `{_esc(title)}`\n"
         f"Bot\\: `@{_esc(bot_username)}`\n"
+        f"Link\\: `{_esc(bot_link)}`\n"
         f"Reward per referral\\: `{format_trx_escaped(amount_per_referral)} TRX`\n"
         f"Balance\\: `{format_trx_escaped(balance)} TRX`\n"
         f"Referrals\\: `{referral_count}`\n"

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from telegram import Update
 from telegram.ext import ContextTypes
+from telegram.constants import ParseMode
 
 from database.database import get_db_session
 from database.models import (
@@ -15,7 +16,7 @@ from database.models import (
     CampaignReport,
     ReportReason,
 )
-from sqlalchemy import func
+from sqlalchemy import func, select
 from services.referral_service import ReferralService
 import config
 from decimal import Decimal
@@ -23,17 +24,21 @@ from services.campaign_service import CampaignService
 from bot.keyboards import campaigns_browse_keyboard, report_reasons_keyboard
 from bot.utils import reply_ephemeral, safe_notify_user
 from bot import messages
-from sqlalchemy import func
 from utils.helpers import get_utc_date, get_utc_time, escape_markdown_v2, format_trx_escaped
 
 
-async def _send_campaign(update: Update, context: ContextTypes.DEFAULT_TYPE, index: int = 0):
+def _generate_campaign_view(update: Update, context: ContextTypes.DEFAULT_TYPE, index: int = 0):
+    """Build the text and keyboard for browsing campaigns at a given index.
+    Returns a tuple (ok, payload) where:
+      - ok is True and payload is dict(text, kb, index) on success
+      - ok is False and payload is an error text to show
+    """
     with get_db_session() as db:
         q = db.query(Campaign).filter(Campaign.is_active == True).order_by(Campaign.id.desc())
         # Exclude campaigns owned by the current user (owners cannot participate in their own campaigns)
         try:
             tg_id = str(update.effective_user.id) if update and update.effective_user else None
-        except Exception:
+        except AttributeError:
             tg_id = None
         if tg_id:
             current_user = db.query(User).filter(User.telegram_id == tg_id).first()
@@ -42,8 +47,8 @@ async def _send_campaign(update: Update, context: ContextTypes.DEFAULT_TYPE, ind
                 # Exclude campaigns already validated today by the current user (once per day rule)
                 today = get_utc_date()
                 validated_today_subq = (
-                    db.query(CampaignParticipation.campaign_id)
-                    .filter(
+                    select(CampaignParticipation.campaign_id)
+                    .where(
                         CampaignParticipation.user_id == current_user.id,
                         CampaignParticipation.status == ParticipationStatus.validated,
                         func.date(CampaignParticipation.validated_at) == today,
@@ -52,22 +57,34 @@ async def _send_campaign(update: Update, context: ContextTypes.DEFAULT_TYPE, ind
                 q = q.filter(~Campaign.id.in_(validated_today_subq))
         campaigns = q.all()
         if not campaigns:
-            await reply_ephemeral(update, "No active campaigns")
-            return
+            return False, "No active campaigns"
         if index >= len(campaigns):
-            msg = "You've reached the end of the campaign list.\n"
-            msg += "There are no more active campaigns available.\n"
-            await reply_ephemeral(update, msg)
-            return
+            msg = "You've reached the end of the campaign list\\.\n"
+            msg += "There are no more active campaigns available\\.\n"
+            return False, msg
         camp = campaigns[index]
-        context.user_data["browse_index"] = index
+        # Validate required attributes
+        if not getattr(camp, 'bot_link', None):
+            return False, "Campaign bot link is not available"
+        if getattr(camp, 'amount_per_referral', None) is None:
+            return False, "Campaign amount per referral is not set"
+        # Build keyboard and text
         kb = campaigns_browse_keyboard(camp.bot_link, camp.id)
         apr = camp.amount_per_referral
-        # Compute payouts
         user_pct = Decimal(str(getattr(config, "PARTICIPATION_USER_REWARD_PERCENT", 75))) / Decimal("100")
         user_reward = Decimal(str(apr * user_pct)).quantize(Decimal("0.000001"))
-        text = messages.browse_campaign(camp.title, camp.bot_username, user_reward)
-        await reply_ephemeral(update, text, reply_markup=kb)
+        title = getattr(camp, 'title', 'Untitled Campaign')
+        text = messages.browse_campaign(title, user_reward)
+        return True, {"text": text, "kb": kb, "index": index}
+
+
+async def _send_campaign(update: Update, context: ContextTypes.DEFAULT_TYPE, index: int = 0):
+    ok, payload = _generate_campaign_view(update, context, index)
+    if not ok:
+        await reply_ephemeral(update, payload)
+        return
+    context.user_data["browse_index"] = payload["index"]
+    await reply_ephemeral(update, payload["text"], reply_markup=payload["kb"]) 
 
 
 async def browse_bots(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -113,51 +130,47 @@ async def forward_validator(update: Update, context: ContextTypes.DEFAULT_TYPE):
         user = db.query(User).filter(User.telegram_id == str(update.effective_user.id)).first()
         if not user:
             return
-        # pick the latest pending participation for this user
-        part = (
-            db.query(CampaignParticipation)
-            .filter(
-                CampaignParticipation.user_id == user.id,
-                CampaignParticipation.status == ParticipationStatus.pending,
-            )
-            .order_by(CampaignParticipation.id.desc())
-            .first()
-        )
+        part = None
         camp = None
         # Validate forward source
         origin_username = _get_forward_origin_username(update.message)
         # If no pending participation, try to infer campaign from forward origin
-        if part is None and origin_username:
-            camp = (
-                db.query(Campaign)
-                .filter(Campaign.bot_username.ilike(origin_username))
-                .first()
+        if origin_username:
+            # Normalize username (ensure no leading '@')
+            ou = origin_username[1:] if origin_username.startswith('@') else origin_username
+            # Exclude campaigns already validated today by this user
+            today = get_utc_date()
+            validated_today_subq = (
+                select(CampaignParticipation.campaign_id)
+                .where(
+                    CampaignParticipation.user_id == user.id,
+                    CampaignParticipation.status == ParticipationStatus.validated,
+                    func.date(CampaignParticipation.validated_at) == today,
+                )
             )
+            base_q = (
+                db.query(Campaign)
+                .filter(Campaign.bot_username.ilike(ou))
+                .filter(Campaign.is_active == True)
+                .filter(~Campaign.id.in_(validated_today_subq))
+            )
+            # Prefer a campaign not owned by the current user when multiple exist
+            preferred_q = base_q.filter(Campaign.owner_id != user.id).order_by(Campaign.id.desc())
+            camp = preferred_q.first()
+
             if camp:
                 svc = CampaignService(db)
-                # Check if user can participate with detailed error messages
-                if not camp.is_active:
-                    await reply_ephemeral(update, messages.campaign_not_active())
-                    return
-                elif camp.owner_id == user.id:
-                    await reply_ephemeral(update, messages.campaign_owner_cannot_participate())
-                    return
-                elif not svc.can_user_participate(camp, user):
-                    # Check specific reason for blocking
-                    today = get_utc_date()
-                    validated_today = (
-                        db.query(CampaignParticipation)
-                        .filter(
-                            CampaignParticipation.campaign_id == camp.id,
-                            CampaignParticipation.user_id == user.id,
-                            CampaignParticipation.status == ParticipationStatus.validated,
-                            func.date(CampaignParticipation.validated_at) == today,
-                        )
-                        .first()
-                    )
-                    if validated_today:
+                # Centralized rule check with explicit reason
+                allowed, reason = svc.can_user_participate(camp, user)
+                if not allowed:
+                    if reason == "inactive":
+                        await reply_ephemeral(update, messages.campaign_not_active())
+                    elif reason == "owner":
+                        await reply_ephemeral(update, messages.campaign_owner_cannot_participate())
+                    elif reason == "validated_today":
                         await reply_ephemeral(update, messages.campaign_already_validated_today())
                     else:
+                        # generic fallback (e.g. existing pending/validated, blocked, etc.)
                         await reply_ephemeral(update, messages.campaign_participation_blocked())
                     return
                 else:
@@ -202,7 +215,6 @@ async def forward_validator(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 description="Task reward validated",
             )
 
-
             # Sponsor commission (5% by default) + notify sponsor
             actual_sponsor_commission = Decimal("0")
             if user.sponsor_id:
@@ -246,10 +258,10 @@ async def forward_validator(update: Update, context: ContextTypes.DEFAULT_TYPE):
                         description="Admin remainder from task reward",
                     )
                     msg = (
-                        f"🎉 *Commission Received*\n"
+                        f"🎉 *Admin Commission Received*\n"
                         f"Amount\\: {format_trx_escaped(admin_remainder)} TRX"
                     )
-                    safe_notify_user(TELEGRAM_ADMIN_ID, msg)
+                    safe_notify_user(config.TELEGRAM_ADMIN_ID, msg)
             db.commit()
             await reply_ephemeral(update, messages.participation_validated(user_reward))
         else:
@@ -260,15 +272,23 @@ async def on_campaign_skip(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     if query:
         await query.answer()
-        # Delete the old message (the one with the inline button)
-        try:
-            await query.message.delete()
-        except Exception:
-            # If deletion fails, just continue
-            pass
     index = context.user_data.get("browse_index", 0) + 1
-    # Use message's chat to send next
-    await _send_campaign(update, context, index=index)
+    ok, payload = _generate_campaign_view(update, context, index)
+    if not ok:
+        # Edit current message to show end/no-campaign notice and remove keyboard
+        try:
+            await query.edit_message_text(payload, parse_mode=ParseMode.MARKDOWN_V2)
+        except Exception:
+            await reply_ephemeral(update, payload)
+        return
+    context.user_data["browse_index"] = payload["index"]
+    # Edit current message in place instead of sending a new one
+    await query.edit_message_text(
+        payload["text"],
+        parse_mode=ParseMode.MARKDOWN_V2,
+        reply_markup=payload["kb"],
+        disable_web_page_preview=True,
+    )
 
 
 async def on_campaign_report(update: Update, context: ContextTypes.DEFAULT_TYPE):

@@ -15,6 +15,7 @@ from database.models import (
     CampaignReport,
     ReportReason,
 )
+from sqlalchemy import func
 from services.referral_service import ReferralService
 import config
 from decimal import Decimal
@@ -131,8 +132,32 @@ async def forward_validator(update: Update, context: ContextTypes.DEFAULT_TYPE):
             )
             if camp:
                 svc = CampaignService(db)
-                # ensure user can participate once
-                if svc.can_user_participate(camp, user):
+                # Check if user can participate with detailed error messages
+                if not camp.is_active:
+                    await reply_ephemeral(update, messages.campaign_not_active())
+                    return
+                elif camp.owner_id == user.id:
+                    await reply_ephemeral(update, messages.campaign_owner_cannot_participate())
+                    return
+                elif not svc.can_user_participate(camp, user):
+                    # Check specific reason for blocking
+                    today = get_utc_date()
+                    validated_today = (
+                        db.query(CampaignParticipation)
+                        .filter(
+                            CampaignParticipation.campaign_id == camp.id,
+                            CampaignParticipation.user_id == user.id,
+                            CampaignParticipation.status == ParticipationStatus.validated,
+                            func.date(CampaignParticipation.validated_at) == today,
+                        )
+                        .first()
+                    )
+                    if validated_today:
+                        await reply_ephemeral(update, messages.campaign_already_validated_today())
+                    else:
+                        await reply_ephemeral(update, messages.campaign_participation_blocked())
+                    return
+                else:
                     part = svc.start_participation(camp, user)
 
         if part is None:
@@ -222,8 +247,6 @@ async def forward_validator(update: Update, context: ContextTypes.DEFAULT_TYPE):
                         f"Amount\\: {format_trx_escaped(admin_remainder)} TRX"
                     )
                     safe_notify_user(TELEGRAM_ADMIN_ID, msg)
-
-            
             db.commit()
             await reply_ephemeral(update, messages.participation_validated(user_reward))
         else:

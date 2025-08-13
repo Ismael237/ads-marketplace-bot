@@ -49,6 +49,10 @@ class CampaignService:
         return campaign.save(self.db)
 
     def can_user_participate(self, campaign: Campaign, user: User) -> bool:
+        # Check if campaign is active
+        if not campaign.is_active:
+            return False
+
         # Disallow owners from participating in their own campaigns
         if campaign.owner_id == user.id:
             return False
@@ -68,7 +72,7 @@ class CampaignService:
         if validated_today:
             return False
 
-        # Block if any participation exists (e.g., pending) to avoid duplicates
+        # Allow participation if no existing participation, or if previous participation failed
         existing = (
             self.db.query(CampaignParticipation)
             .filter(
@@ -77,7 +81,8 @@ class CampaignService:
             )
             .first()
         )
-        return existing is None
+        # Allow if no existing participation or if the existing one failed
+        return existing is None or existing.status == ParticipationStatus.failed
 
     def start_participation(self, campaign: Campaign, user: User) -> CampaignParticipation:
         participation = CampaignParticipation.create(

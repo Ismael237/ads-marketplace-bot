@@ -250,3 +250,20 @@ def myads_recharge_done(campaign_id: int, amount: Decimal) -> str:
 
 def myads_recharge_cancelled() -> str:
     return "❌ Recharge cancelled\\."
+
+
+# ==================== Participation Validation Messages ====================
+def campaign_not_active() -> str:
+    return "⚠️ This campaign is currently inactive and cannot be participated in\\."
+
+
+def campaign_owner_cannot_participate() -> str:
+    return "🚫 You cannot participate in your own campaigns\\."
+
+
+def campaign_already_validated_today() -> str:
+    return "⏰ You have already validated this campaign today\\. Please try again tomorrow\\."
+
+
+def campaign_participation_blocked() -> str:
+    return "🔒 You cannot participate in this campaign at the moment\\. Please try a different campaign\\."

@@ -3,6 +3,7 @@ from __future__ import annotations
 import time
 from decimal import Decimal
 
+from bot.keyboards import transaction_details_inline_keyboard
 from database.database import get_db_session
 from database.models import (
     UserWallet,
@@ -49,9 +50,9 @@ def forward_deposit_to_main_wallet(wallet: UserWallet, amount: Decimal, deposit_
                 f"From deposit\\:\n\n" 
                 f"`{escape_markdown_v2(deposit_tx_id)}`\n\n"
                 f"to main wallet\\.\n\n"
-                f"TX: `{escape_markdown_v2(tx_id)}`"
+                f"TX\\: `{escape_markdown_v2(tx_id)}`"
             )
-            safe_notify_user(TELEGRAM_ADMIN_ID, msg)
+            safe_notify_user(TELEGRAM_ADMIN_ID, msg, reply_markup=transaction_details_inline_keyboard(tx_id))
     except Exception as e:
         logger.error(f"[Deposit] Error forwarding deposit to main wallet: {e}")
         try:
@@ -59,7 +60,7 @@ def forward_deposit_to_main_wallet(wallet: UserWallet, amount: Decimal, deposit_
                 f"❌ *{format_trx_escaped(amount)} from deposit {escape_markdown_v2(deposit_tx_id)} to main wallet failed*\\.\n"
                 f"From deposit\\:\n\n"
                 f"`{escape_markdown_v2(deposit_tx_id)}`\n\n"
-                f"Error: {escape_markdown_v2(str(e))}"
+                f"Error\\: {escape_markdown_v2(str(e))}"
             )
             safe_notify_user(TELEGRAM_ADMIN_ID, msg)
         except Exception:
@@ -107,8 +108,8 @@ def monitor_deposits():
                             logger.info(f"[Deposit] {amount} TRX credited to user {user.id} (tx {tx['txID']})")
                             # Telegram notification
                             msg = f"💰 *Deposit of {format_trx_escaped(amount)} TRX confirmed*\\.\n"
-                            msg += f"TX: `{escape_markdown_v2(tx['txID'])}`"
-                            safe_notify_user(user.telegram_id, msg)
+                            msg += f"TX\\: `{escape_markdown_v2(tx['txID'])}`"
+                            safe_notify_user(user.telegram_id, msg, reply_markup=transaction_details_inline_keyboard(tx['txID']))
 
                             forward_deposit_to_main_wallet(wallet, amount, tx['txID'])
             session.commit()
@@ -117,7 +118,7 @@ def monitor_deposits():
             try:
                 # best-effort notification if we have context
                 if 'user' in locals() and 'amount' in locals():
-                    msg = f"❌ *Deposit of {format_trx_escaped(amount)} TRX failed*\\.\nError: {escape_markdown_v2(str(e))}"
+                    msg = f"❌ *Deposit of {format_trx_escaped(amount)} TRX failed*\\.\nError\\: {escape_markdown_v2(str(e))}"
                     safe_notify_user(user.telegram_id, msg)
             except Exception:
                 pass

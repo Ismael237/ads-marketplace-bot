@@ -40,13 +40,14 @@ def deposit_copied(address: str) -> str:
     )
 
 
-def withdraw_ask_amount(min_withdrawal: Decimal) -> str:
+def withdraw_ask_amount(min_withdrawal: Decimal, current_earn_balance: Decimal) -> str:
     sep = get_separator()
     return (
         "🏧 Withdraw TRX\n"
         f"{sep}\n"
-        "Select an amount or enter a custom amount \\(e\\.g\\. 12\\.5\\)\\:\n"
-        f"Minimum\\: `{format_trx_escaped(min_withdrawal)} TRX`"
+        f"Minimum\\: `{format_trx_escaped(min_withdrawal)} TRX`\n"
+        f"Your balance\\: `{format_trx_escaped(current_earn_balance)} TRX`\n"
+        "Select an amount or enter a custom amount \\(e\\.g\\. 12\\.5\\)\\:"
     )
 
 
@@ -228,10 +229,11 @@ def my_ad_overview(title: str, bot_username: str, amount_per_referral: Decimal, 
     )
 
 
-def myads_recharge_ask_amount() -> str:
+def myads_recharge_ask_amount(current_ad_balance: Decimal) -> str:
     return (
-        "🔋 Enter amount to recharge this ad, or choose a preset below\\.\n"
-        "You can cancel anytime\\."
+        f"Your ad balance\\: `{format_trx_escaped(current_ad_balance)} TRX`\n"
+        "You can cancel anytime\\.\n"
+        "🔋 Enter amount to recharge this ad, or choose a preset below\\:"
     )
 
 
@@ -250,6 +252,18 @@ def myads_recharge_done(campaign_id: int, amount: Decimal) -> str:
 
 def myads_recharge_cancelled() -> str:
     return "❌ Recharge cancelled\\."
+
+
+# ==================== Broadcasts ====================
+def campaign_activated_broadcast() -> str:
+    """Stylish, engaging message to notify all users when a campaign gets recharged and activated."""
+    sep = get_separator()
+    return (
+        "🚀 New campaign activated\\!\n"
+        f"{sep}\n"
+        "Participate now and earn TRX\\! 🤑\n"
+        "Browse campaigns from the menu to start\\."
+    )
 
 
 # ==================== Participation Validation Messages ====================

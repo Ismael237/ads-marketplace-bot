@@ -224,11 +224,11 @@ def pagination_inline_keyboard(current_page, total_pages, callback_prefix):
 def campaigns_browse_keyboard(bot_link: str, campaign_id: int):
     return InlineKeyboardMarkup([
         [
-            InlineKeyboardButton(text="Message Bot", url=bot_link),
-            InlineKeyboardButton(text="Skip", callback_data="campaign_skip"),
+            InlineKeyboardButton(text="🤖 Message Bot", url=bot_link),
         ],
         [
-            InlineKeyboardButton(text="Report", callback_data=f"campaign_report:{campaign_id}"),
+            InlineKeyboardButton(text="🚨 Report", callback_data=f"campaign_report:{campaign_id}"),
+            InlineKeyboardButton(text="⏭️ Skip", callback_data="campaign_skip"),
         ],
     ])
 

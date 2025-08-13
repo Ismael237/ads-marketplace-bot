@@ -55,7 +55,10 @@ async def _send_campaign(update: Update, context: ContextTypes.DEFAULT_TYPE, ind
             await reply_ephemeral(update, "No active campaigns")
             return
         if index >= len(campaigns):
-            index = 0
+            msg = "You've reached the end of the campaign list.\n"
+            msg += "There are no more active campaigns available.\n"
+            await reply_ephemeral(update, msg)
+            return
         camp = campaigns[index]
         context.user_data["browse_index"] = index
         kb = campaigns_browse_keyboard(camp.bot_link, camp.id)
@@ -257,6 +260,12 @@ async def on_campaign_skip(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     if query:
         await query.answer()
+        # Delete the old message (the one with the inline button)
+        try:
+            await query.message.delete()
+        except Exception:
+            # If deletion fails, just continue
+            pass
     index = context.user_data.get("browse_index", 0) + 1
     # Use message's chat to send next
     await _send_campaign(update, context, index=index)

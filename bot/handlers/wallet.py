@@ -36,7 +36,16 @@ async def withdraw(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if len(args) < 2:
         # Start guided flow
         context.user_data[WITHDRAW_STATE_KEY] = "ask_amount"
-        await reply_ephemeral(update, messages.withdraw_ask_amount(config.MIN_WITHDRAWAL_TRX), reply_markup=withdraw_reply_keyboard())
+        with get_db_session() as db:
+            user = db.query(User).filter(User.telegram_id == str(update.effective_user.id)).first()
+            if not user:
+                await reply_ephemeral(update, "Please /start first")
+                return
+            await reply_ephemeral(
+                update,
+                messages.withdraw_ask_amount(config.MIN_WITHDRAWAL_TRX, user.earn_balance),
+                reply_markup=withdraw_reply_keyboard(),
+            )
         return
     amount_str, to_address = args[0], args[1]
     try:
@@ -96,7 +105,16 @@ async def on_withdraw_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if state == "ask_amount":
         amount = _parse_amount_text(text_in)
         if not amount or amount < Decimal(str(config.MIN_WITHDRAWAL_TRX)):
-            await reply_ephemeral(update, messages.withdraw_ask_amount(config.MIN_WITHDRAWAL_TRX), reply_markup=withdraw_reply_keyboard())
+            with get_db_session() as db:
+                user = db.query(User).filter(User.telegram_id == str(update.effective_user.id)).first()
+                if not user:
+                    await reply_ephemeral(update, "Please /start first")
+                    return
+                await reply_ephemeral(
+                    update,
+                    messages.withdraw_ask_amount(config.MIN_WITHDRAWAL_TRX, user.earn_balance),
+                    reply_markup=withdraw_reply_keyboard(),
+                )
             return
         context.user_data[WITHDRAW_AMOUNT_KEY] = amount
         context.user_data[WITHDRAW_STATE_KEY] = "ask_address"

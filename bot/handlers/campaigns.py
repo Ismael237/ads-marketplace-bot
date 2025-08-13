@@ -333,7 +333,7 @@ async def on_my_ads_actions(update: Update, context: ContextTypes.DEFAULT_TYPE):
             context.user_data[MYADS_RECHARGE_STATE_KEY] = "ask_amount"
             context.user_data[MYADS_RECHARGE_CAMP_ID_KEY] = camp_id
             await query.edit_message_reply_markup(reply_markup=None)
-            await reply_ephemeral(update, messages.myads_recharge_ask_amount(), reply_markup=recharge_reply_keyboard())
+            await reply_ephemeral(update, messages.myads_recharge_ask_amount(user.ad_balance), reply_markup=recharge_reply_keyboard())
             return
 
 
@@ -346,7 +346,12 @@ async def on_myads_recharge_text(update: Update, context: ContextTypes.DEFAULT_T
     amount = _parse_amount_text(text_in)
     min_recharge = Decimal(str(getattr(config, "MIN_RECHARGE_TRX", 1)))
     if not amount or amount < min_recharge:
-        await reply_ephemeral(update, messages.myads_recharge_ask_amount())
+        with get_db_session() as db:
+            user = db.query(User).filter(User.telegram_id == str(update.effective_user.id)).first()
+            if not user:
+                await reply_ephemeral(update, "Please /start first")
+                return
+            await reply_ephemeral(update, messages.myads_recharge_ask_amount(user.ad_balance))
         return
     # Optional: check against user's ad_balance now for better UX
     with get_db_session() as db:
@@ -368,7 +373,11 @@ async def on_myads_recharge_callback(update: Update, context: ContextTypes.DEFAU
     # Inline presets are no longer used; keep for backward compatibility if present
     if data.startswith("myads_recharge_preset_"):
         await query.edit_message_reply_markup(reply_markup=None)
-        await query.message.reply_markdown_v2(messages.myads_recharge_ask_amount())
+        with get_db_session() as db:
+            user = db.query(User).filter(User.telegram_id == str(update.effective_user.id)).first()
+            if not user:
+                return
+            await query.message.reply_markdown_v2(messages.myads_recharge_ask_amount(user.ad_balance))
         return
     if data == "myads_recharge_cancel":
         context.user_data.pop(MYADS_RECHARGE_STATE_KEY, None)
@@ -406,11 +415,15 @@ async def on_myads_recharge_confirm_text(update: Update, context: ContextTypes.D
         if user.ad_balance < amt:
             await reply_ephemeral(update, "Insufficient ad\\_balance")
             return
+        prev_active = bool(camp.is_active)
         user.ad_balance -= amt
         camp.balance += amt
         # Auto-activate if recharged to meet the threshold
+        was_activated = False
         if camp.balance >= camp.amount_per_referral:
             camp.is_active = True
+            if not prev_active:
+                was_activated = True
         # Log transaction as campaign_spend for history (investments)
         Transaction.create(
             db,
@@ -454,11 +467,26 @@ async def on_myads_recharge_confirm_text(update: Update, context: ContextTypes.D
                     safe_notify_user(spons_tid, msg)
         except Exception as e:
             logger.error(f"[SponsorCommission] Failed to apply sponsor commission: {e}")
+        # Keep fields for possible broadcast before closing session
         db.commit()
     # Clear state
     context.user_data.pop(MYADS_RECHARGE_STATE_KEY, None)
     context.user_data.pop(MYADS_RECHARGE_CAMP_ID_KEY, None)
     context.user_data.pop(MYADS_RECHARGE_AMOUNT_KEY, None)
+    # Broadcast activation to all users if the recharge caused activation
+    try:
+        if was_activated:
+            broadcast = messages.campaign_activated_broadcast()
+            with get_db_session() as db:
+                users = db.query(User).all()
+                for u in users:
+                    try:
+                        tid = int(u.telegram_id)
+                    except Exception:
+                        tid = u.telegram_id
+                    safe_notify_user(tid, broadcast)
+    except Exception as e:
+        logger.error(f"[Broadcast] Failed to notify users about activation of a campaign: {e}")
     # Refresh the campaign card view
     with get_db_session() as db:
         user = db.query(User).filter(User.telegram_id == str(update.effective_user.id)).first()
@@ -533,6 +561,7 @@ async def recharge_campaign(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if user.ad_balance < amount:
             await reply_ephemeral(update, "Insufficient ad\\_balance")
             return
+        prev_active = bool(camp.is_active)
         user.ad_balance -= amount
         camp.balance += amount
         # Apply sponsor commission and notify
@@ -561,12 +590,31 @@ async def recharge_campaign(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     username = user.username or "user"
                     msg = (
                         f"🎉 *Commission Received*\n"
-                        f"You have received {escape_markdown_v2(str(int(percent)))}\% on a campaign recharge by @" 
+                        f"You have received {escape_markdown_v2(str(int(percent)))}% on a campaign recharge by @" 
                         f"{escape_markdown_v2(username)}\n"
                         f"Amount\\: {format_trx_escaped(commission)} TRX"
                     )
                     safe_notify_user(spons_tid, msg)
         except Exception as e:
             logger.error(f"[SponsorCommission] Failed to apply sponsor commission: {e}")
+        # Detect activation and store info for broadcasting
+        was_activated = False
+        if camp.balance >= camp.amount_per_referral and not prev_active:
+            camp.is_active = True
+            was_activated = True
         db.commit()
         await reply_ephemeral(update, f"Campaign {camp.id} recharged by {amount}")
+    # Broadcast activation to all users if the recharge caused activation
+    try:
+        if was_activated:
+            broadcast = messages.campaign_activated_broadcast()
+            with get_db_session() as db:
+                users = db.query(User).all()
+                for u in users:
+                    try:
+                        tid = int(u.telegram_id)
+                    except Exception:
+                        tid = u.telegram_id
+                    safe_notify_user(tid, broadcast)
+    except Exception as e:
+        logger.error(f"[Broadcast] Failed to notify users about activation of campaign: {e}")

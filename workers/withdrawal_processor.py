@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from decimal import Decimal
 
+from bot.keyboards import transaction_details_inline_keyboard
 from database.database import get_db_session
 from database.models import (
     Withdrawal,
@@ -46,8 +47,8 @@ def process_withdrawals():
                         logger.info(f"[Withdrawal] {wd.amount_trx} TRX({amount_to_send} TRX) sent to {wd.to_address} (user {user.id}, tx {tx_hash})")
                         # Telegram notification
                         msg = f"✅ *Withdrawal of {format_trx_escaped(wd.amount_trx)} TRX processed successfully\\.*\n"
-                        msg += f"TX: `{escape_markdown_v2(tx_hash)}`"
-                        safe_notify_user(user.telegram_id, msg)
+                        msg += f"TX\\: `{escape_markdown_v2(tx_hash)}`"
+                        safe_notify_user(user.telegram_id, msg, reply_markup=transaction_details_inline_keyboard(tx_hash))
                     except Exception as e:
                         wd.status = WithdrawalStatus.failed
                         # Also mark original transaction as failed
@@ -58,8 +59,8 @@ def process_withdrawals():
                         logger.error(f"[Withdrawal] TRX send error: {e}")
                         msg = f"❌ *Withdrawal of {format_trx_escaped(wd.amount_trx)} failed\\.*\n"
                         if tx_hash:
-                            msg += f"TX: `{escape_markdown_v2(tx_hash)}`\n"
-                        msg += f"Error: {escape_markdown_v2(str(e))}\n"
+                            msg += f"TX\\: `{escape_markdown_v2(tx_hash)}`\n"
+                        msg += f"Error\\: {escape_markdown_v2(str(e))}\n"
                         safe_notify_user(user.telegram_id, msg)
                 else:
                     wd.status = WithdrawalStatus.failed
@@ -77,7 +78,7 @@ def process_withdrawals():
             logger.error(f"[Withdrawal] Error: {e}")
             try:
                 if 'wd' in locals() and 'user' in locals():
-                    msg = f"❌ *Withdrawal of {format_trx_escaped(wd.amount_trx)} failed\\.*\nError: {escape_markdown_v2(str(e))}\\.\n"
+                    msg = f"❌ *Withdrawal of {format_trx_escaped(wd.amount_trx)} failed\\.*\nError\\: {escape_markdown_v2(str(e))}\\.\n"
                     safe_notify_user(user.telegram_id, msg)
             except Exception:
                 pass

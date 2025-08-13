@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from decimal import Decimal
-from typing import Optional, List
+from typing import Optional, Tuple
 from sqlalchemy.orm import Session
 
 from database.models import (
@@ -48,14 +48,18 @@ class CampaignService:
         campaign.is_active = True
         return campaign.save(self.db)
 
-    def can_user_participate(self, campaign: Campaign, user: User) -> bool:
+    def can_user_participate(self, campaign: Campaign, user: User) -> Tuple[bool, Optional[str]]:
+        """Check if a user can participate in a campaign.
+        Returns (allowed, reason) where reason is one of:
+        'inactive', 'owner', 'validated_today', 'existing'
+        """
         # Check if campaign is active
         if not campaign.is_active:
-            return False
+            return False, "inactive"
 
         # Disallow owners from participating in their own campaigns
         if campaign.owner_id == user.id:
-            return False
+            return False, "owner"
 
         # Disallow if user has already validated this campaign today (once per day)
         today = get_utc_date()
@@ -70,19 +74,10 @@ class CampaignService:
             .first()
         )
         if validated_today:
-            return False
+            return False, "validated_today"
 
-        # Allow participation if no existing participation, or if previous participation failed
-        existing = (
-            self.db.query(CampaignParticipation)
-            .filter(
-                CampaignParticipation.campaign_id == campaign.id,
-                CampaignParticipation.user_id == user.id,
-            )
-            .first()
-        )
-        # Allow if no existing participation or if the existing one failed
-        return existing is None or existing.status == ParticipationStatus.failed
+        # Allowed
+        return True, None
 
     def start_participation(self, campaign: Campaign, user: User) -> CampaignParticipation:
         participation = CampaignParticipation.create(

@@ -1,14 +1,10 @@
 from __future__ import annotations
 
-from decimal import Decimal
-from typing import Optional
 from sqlalchemy.orm import Session
 
-import config
-from database.models import User, UserWallet, Deposit, DepositStatus, Transaction, TransactionType, BalanceType
-from services.referral_service import ReferralService
-from utils.crypto import encrypt_text, decrypt_text
-from utils.tron_client import get_tron_client, address_from_private_key_hex
+from database.models import User, UserWallet
+from utils.crypto import encrypt_text
+from utils.tron_client import get_tron_client
 from utils.logger import get_logger
 
 

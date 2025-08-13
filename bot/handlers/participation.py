@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from telegram import Update
-from telegram.ext import ContextTypes, CommandHandler, MessageHandler, CallbackQueryHandler, filters
+from telegram.ext import ContextTypes
 
 from database.database import get_db_session
 from database.models import (
@@ -20,13 +20,35 @@ import config
 from decimal import Decimal
 from services.campaign_service import CampaignService
 from bot.keyboards import campaigns_browse_keyboard, report_reasons_keyboard
-from bot.utils import reply_ephemeral
+from bot.utils import reply_ephemeral, safe_notify_user
 from bot import messages
+from sqlalchemy import func
+from utils.helpers import get_utc_date, get_utc_time, escape_markdown_v2, format_trx_escaped
 
 
 async def _send_campaign(update: Update, context: ContextTypes.DEFAULT_TYPE, index: int = 0):
     with get_db_session() as db:
         q = db.query(Campaign).filter(Campaign.is_active == True).order_by(Campaign.id.desc())
+        # Exclude campaigns owned by the current user (owners cannot participate in their own campaigns)
+        try:
+            tg_id = str(update.effective_user.id) if update and update.effective_user else None
+        except Exception:
+            tg_id = None
+        if tg_id:
+            current_user = db.query(User).filter(User.telegram_id == tg_id).first()
+            if current_user:
+                q = q.filter(Campaign.owner_id != current_user.id)
+                # Exclude campaigns already validated today by the current user (once per day rule)
+                today = get_utc_date()
+                validated_today_subq = (
+                    db.query(CampaignParticipation.campaign_id)
+                    .filter(
+                        CampaignParticipation.user_id == current_user.id,
+                        CampaignParticipation.status == ParticipationStatus.validated,
+                        func.date(CampaignParticipation.validated_at) == today,
+                    )
+                )
+                q = q.filter(~Campaign.id.in_(validated_today_subq))
         campaigns = q.all()
         if not campaigns:
             await reply_ephemeral(update, "No active campaigns")
@@ -36,7 +58,11 @@ async def _send_campaign(update: Update, context: ContextTypes.DEFAULT_TYPE, ind
         camp = campaigns[index]
         context.user_data["browse_index"] = index
         kb = campaigns_browse_keyboard(camp.bot_link, camp.id)
-        text = messages.browse_campaign(camp.title, camp.bot_username, camp.amount_per_referral)
+        apr = camp.amount_per_referral
+        # Compute payouts
+        user_pct = Decimal(str(getattr(config, "PARTICIPATION_USER_REWARD_PERCENT", 75))) / Decimal("100")
+        user_reward = Decimal(str(apr * user_pct)).quantize(Decimal("0.000001"))
+        text = messages.browse_campaign(camp.title, camp.bot_username, user_reward)
         await reply_ephemeral(update, text, reply_markup=kb)
 
 
@@ -123,34 +149,83 @@ async def forward_validator(update: Update, context: ContextTypes.DEFAULT_TYPE):
         svc.set_forward_and_generate_link(part, str(update.message.message_id))
         # Immediately process validation and payments (MVP):
         part.status = ParticipationStatus.validated
+        part.validated_at = get_utc_time()
         db.commit()
         camp.amount_per_referral = camp.amount_per_referral or Decimal("0")
         if camp.balance >= camp.amount_per_referral:
-            camp.balance -= camp.amount_per_referral
-            user.earn_balance += camp.amount_per_referral
+            apr = camp.amount_per_referral
+            # Compute payouts
+            user_pct = Decimal(str(getattr(config, "PARTICIPATION_USER_REWARD_PERCENT", 75))) / Decimal("100")
+            sponsor_pct = Decimal(str(getattr(config, "SPONSOR_PARTICIPATION_COMMISSION_PERCENT", 5))) / Decimal("100")
+            user_reward = Decimal(str(apr * user_pct)).quantize(Decimal("0.000001"))
+            sponsor_commission = Decimal(str(apr * sponsor_pct)).quantize(Decimal("0.000001"))
+
+            # Deduct full APR from campaign balance to keep economic semantics
+            camp.balance -= apr
+            user.earn_balance += user_reward
             camp.referral_count += 1
             Transaction.create(
                 db,
                 user_id=user.id,
                 type=TransactionType.task_reward,
-                amount_trx=camp.amount_per_referral,
+                amount_trx=user_reward,
                 balance_type=BalanceType.earn_balance,
                 reference_id=str(part.id),
                 description="Task reward validated",
             )
-            # Sponsor commission
+
+
+            # Sponsor commission (5% by default) + notify sponsor
+            actual_sponsor_commission = Decimal("0")
             if user.sponsor_id:
                 sponsor = db.query(User).filter(User.id == user.sponsor_id).first()
-                if sponsor:
+                if sponsor and sponsor_commission > 0:
                     ReferralService(db).pay_task_commission(
                         sponsor=sponsor,
                         referred_user=user,
-                        amount_trx=camp.amount_per_referral,
-                        percentage=Decimal(str(config.REFERRAL_COMMISSION_RATE)),
+                        amount_trx=apr,
+                        percentage=sponsor_pct,
                         participation_id=part.id,
                     )
+                    actual_sponsor_commission = sponsor_commission
+                    # Notify sponsor
+                    try:
+                        spons_tid = int(sponsor.telegram_id)
+                    except Exception:
+                        spons_tid = sponsor.telegram_id
+                    username = user.username or "user"
+                    msg = (
+                        f"🎉 *Commission Received*\n"
+                        f"You have received {escape_markdown_v2(str(int(sponsor_pct * 100)))}% on a validated participation by @"
+                        f"{escape_markdown_v2(username)}\n"
+                        f"Amount\\: {format_trx_escaped(sponsor_commission)} TRX"
+                    )
+                    safe_notify_user(spons_tid, msg)
+
+            # Credit admin with the remainder (APR - user_reward - actual_sponsor_commission)
+            admin_remainder = (apr - user_reward - actual_sponsor_commission).quantize(Decimal("0.000001"))
+            if admin_remainder > 0:
+                admin_user = db.query(User).filter(User.telegram_id == str(config.TELEGRAM_ADMIN_ID)).first()
+                if admin_user:
+                    admin_user.earn_balance += admin_remainder
+                    Transaction.create(
+                        db,
+                        user_id=admin_user.id,
+                        type=TransactionType.task_reward,
+                        amount_trx=admin_remainder,
+                        balance_type=BalanceType.earn_balance,
+                        reference_id=str(part.id),
+                        description="Admin remainder from task reward",
+                    )
+                    msg = (
+                        f"🎉 *Commission Received*\n"
+                        f"Amount\\: {format_trx_escaped(admin_remainder)} TRX"
+                    )
+                    safe_notify_user(TELEGRAM_ADMIN_ID, msg)
+
+            
             db.commit()
-            await reply_ephemeral(update, messages.participation_validated(camp.amount_per_referral))
+            await reply_ephemeral(update, messages.participation_validated(user_reward))
         else:
             await reply_ephemeral(update, messages.campaign_insufficient_balance())
 
@@ -200,11 +275,4 @@ async def on_report_reason(update: Update, context: ContextTypes.DEFAULT_TYPE):
         CampaignReport.create(db, campaign_id=campaign_id, reporter_id=user.id, reason=reason_enum, description=None)
     await query.edit_message_reply_markup(reply_markup=None)
     await query.message.reply_markdown_v2(messages.report_saved())
-
-
-def get_handlers():
-    return [
-
-    ]
-
 

@@ -11,6 +11,8 @@ from database.models import (
     ParticipationStatus,
 )
 from utils.helpers import generate_validation_link
+from sqlalchemy import func
+from utils.helpers import get_utc_date
 
 
 class CampaignService:
@@ -47,6 +49,26 @@ class CampaignService:
         return campaign.save(self.db)
 
     def can_user_participate(self, campaign: Campaign, user: User) -> bool:
+        # Disallow owners from participating in their own campaigns
+        if campaign.owner_id == user.id:
+            return False
+
+        # Disallow if user has already validated this campaign today (once per day)
+        today = get_utc_date()
+        validated_today = (
+            self.db.query(CampaignParticipation)
+            .filter(
+                CampaignParticipation.campaign_id == campaign.id,
+                CampaignParticipation.user_id == user.id,
+                CampaignParticipation.status == ParticipationStatus.validated,
+                func.date(CampaignParticipation.validated_at) == today,
+            )
+            .first()
+        )
+        if validated_today:
+            return False
+
+        # Block if any participation exists (e.g., pending) to avoid duplicates
         existing = (
             self.db.query(CampaignParticipation)
             .filter(

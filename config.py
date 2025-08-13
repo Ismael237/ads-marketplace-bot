@@ -30,11 +30,19 @@ ENCRYPTION_KEY = os.getenv('ENCRYPTION_KEY')
 MIN_DEPOSIT_TRX = float(os.getenv('MIN_DEPOSIT_TRX', '1'))
 MIN_WITHDRAWAL_TRX = float(os.getenv('MIN_WITHDRAWAL_TRX', '1'))
 AMOUNT_PER_REFERRAL = float(os.getenv('AMOUNT_PER_REFERRAL', '10.0'))
-REFERRAL_COMMISSION_RATE = float(os.getenv('REFERRAL_COMMISSION_RATE', '0.10'))
-DEPOSIT_COMMISSION_RATE = float(os.getenv('DEPOSIT_COMMISSION_RATE', '0.05'))
 DEPOSIT_TO_MAIN_WALLET_RATE = float(os.getenv('DEPOSIT_TO_MAIN_WALLET_RATE', '0.9'))
 WITHDRAWAL_FEE_RATE = float(os.getenv('WITHDRAWAL_FEE_RATE', '0.01'))
-HISTORY_PAGE_SIZE = int(os.getenv('HISTORY_PAGE_SIZE', '10'))
+HISTORY_PAGE_SIZE = int(os.getenv('HISTORY_PAGE_SIZE', '3'))
+
+# Sponsor commission on campaign recharge (percentage, e.g., 10 = 10%)
+SPONSOR_RECHARGE_COMMISSION_PERCENT = float(os.getenv('SPONSOR_RECHARGE_COMMISSION_PERCENT', '10'))
+
+# Participation rewards and commissions (percentages)
+# User receives this percent of campaign's AMOUNT_PER_REFERRAL upon successful validation
+PARTICIPATION_USER_REWARD_PERCENT = float(os.getenv('PARTICIPATION_USER_REWARD_PERCENT', '75'))
+
+# Sponsor receives this percent of campaign's AMOUNT_PER_REFERRAL upon successful validation
+SPONSOR_PARTICIPATION_COMMISSION_PERCENT = float(os.getenv('SPONSOR_PARTICIPATION_COMMISSION_PERCENT', '5'))
 
 # Logging Configuration
 LOG_LEVEL = os.getenv('LOG_LEVEL', 'INFO')

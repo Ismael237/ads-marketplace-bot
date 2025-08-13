@@ -11,19 +11,18 @@ from services.campaign_service import CampaignService
 from bot.keyboards import (
     SKIP_BTN,
     ads_reply_keyboard,
-    campaign_manage_keyboard,
     cancel_create_campaign_keyboard,
     title_step_keyboard,
     create_campaign_confirm_inline_keyboard,
     recharge_reply_keyboard,
-    cancel_recharge_keyboard,
     confirm_recharge_keyboard,
 )
-from bot.utils import reply_ephemeral
+from bot.utils import reply_ephemeral, safe_notify_user
 from bot import messages
 from utils.logger import logger
 from utils.validators import sanitize_telegram_username
 import config
+from utils.helpers import escape_markdown_v2, format_trx_escaped
 
 
 # ===== Campaign creation flow state keys =====
@@ -241,7 +240,7 @@ async def show_my_ads(update: Update, context: ContextTypes.DEFAULT_TYPE, page: 
             camp.is_active = False
             db.commit()
         kb = _my_ads_inline_keyboard(idx, len(items), camp.id, bool(camp.is_active))
-        text = messages.my_ad_overview(camp.title, camp.bot_username, camp.amount_per_referral, camp.balance, bool(camp.is_active), idx + 1, len(items))
+        text = messages.my_ad_overview(camp.title, camp.bot_username, camp.amount_per_referral, camp.balance, bool(camp.is_active), camp.referral_count, idx + 1, len(items))
         await reply_ephemeral(update, text, reply_markup=kb)
 
 
@@ -273,7 +272,7 @@ async def on_my_ads_pagination(update: Update, context: ContextTypes.DEFAULT_TYP
             camp.is_active = False
             db.commit()
         kb = _my_ads_inline_keyboard(idx, len(items), camp.id, bool(camp.is_active))
-        text = messages.my_ad_overview(camp.title, camp.bot_username, camp.amount_per_referral, camp.balance, bool(camp.is_active), idx + 1, len(items))
+        text = messages.my_ad_overview(camp.title, camp.bot_username, camp.amount_per_referral, camp.balance, bool(camp.is_active), camp.referral_count, idx + 1, len(items))
         await query.edit_message_text(text, reply_markup=kb, parse_mode=ParseMode.MARKDOWN_V2)
 
 
@@ -319,7 +318,7 @@ async def on_my_ads_actions(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     idx = i
                     break
             kb = _my_ads_inline_keyboard(idx, len(items), camp.id, bool(camp.is_active))
-            text = messages.my_ad_overview(camp.title, camp.bot_username, camp.amount_per_referral, camp.balance, bool(camp.is_active), idx + 1, len(items))
+            text = messages.my_ad_overview(camp.title, camp.bot_username, camp.amount_per_referral, camp.balance, bool(camp.is_active), camp.referral_count, idx + 1, len(items))
             await reply_ephemeral(update, text, reply_markup=kb)
             return
         # Start recharge flow
@@ -422,6 +421,39 @@ async def on_myads_recharge_confirm_text(update: Update, context: ContextTypes.D
             reference_id=str(camp.id),
             description="Campaign recharge",
         )
+        # Sponsor commission: credit sponsor 10% of recharge to earn_balance and notify
+        try:
+            if user.sponsor_id:
+                sponsor = db.query(User).get(int(user.sponsor_id))
+                if sponsor:
+                    from decimal import Decimal as D
+                    percent = D(str(getattr(config, "SPONSOR_RECHARGE_COMMISSION_PERCENT", 10)))
+                    commission = (amt * percent) / D(100)
+                    sponsor.earn_balance = (sponsor.earn_balance or D(0)) + commission
+                    Transaction.create(
+                        db,
+                        user_id=sponsor.id,
+                        type=TransactionType.referral_commission,
+                        amount_trx=commission,
+                        balance_type=BalanceType.earn_balance,
+                        reference_id=str(camp.id),
+                        description="Sponsor commission on campaign recharge",
+                    )
+                    # Notify sponsor
+                    try:
+                        spons_tid = int(sponsor.telegram_id)
+                    except Exception:
+                        spons_tid = sponsor.telegram_id
+                    username = user.username or "user"
+                    msg = (
+                        f"🎉 *Commission Received*\n"
+                        f"You have received {escape_markdown_v2(str(int(percent)))}% on a campaign recharge by @" 
+                        f"{escape_markdown_v2(username)}\n"
+                        f"Amount\\: {format_trx_escaped(commission)} TRX"
+                    )
+                    safe_notify_user(spons_tid, msg)
+        except Exception as e:
+            logger.error(f"[SponsorCommission] Failed to apply sponsor commission: {e}")
         db.commit()
     # Clear state
     context.user_data.pop(MYADS_RECHARGE_STATE_KEY, None)
@@ -442,7 +474,7 @@ async def on_myads_recharge_confirm_text(update: Update, context: ContextTypes.D
                 camp = it
                 break
         kb = _my_ads_inline_keyboard(idx, len(items), camp.id, bool(camp.is_active))
-        text = messages.my_ad_overview(camp.title, camp.bot_username, camp.amount_per_referral, camp.balance, bool(camp.is_active), idx + 1, len(items))
+        text = messages.my_ad_overview(camp.title, camp.bot_username, camp.amount_per_referral, camp.balance, bool(camp.is_active), camp.referral_count, idx + 1, len(items))
         await reply_ephemeral(update, "My Ads:", reply_markup=ads_reply_keyboard())
         await reply_ephemeral(update, text, reply_markup=kb)
 
@@ -450,7 +482,7 @@ async def on_myads_recharge_confirm_text(update: Update, context: ContextTypes.D
 async def pause_campaign(update: Update, context: ContextTypes.DEFAULT_TYPE):
     args = context.args or []
     if not args:
-        await reply_ephemeral(update, "Usage\\: /pause_campaign <campaign_id>")
+        await reply_ephemeral(update, "Usage\\: /pause_campaign <campaign_id\\>")
         return
     with get_db_session() as db:
         camp = db.query(Campaign).get(int(args[0]))
@@ -503,5 +535,38 @@ async def recharge_campaign(update: Update, context: ContextTypes.DEFAULT_TYPE):
             return
         user.ad_balance -= amount
         camp.balance += amount
+        # Apply sponsor commission and notify
+        try:
+            if user.sponsor_id:
+                sponsor = db.query(User).get(int(user.sponsor_id))
+                if sponsor:
+                    from decimal import Decimal as D
+                    percent = D(str(getattr(config, "SPONSOR_RECHARGE_COMMISSION_PERCENT", 10)))
+                    commission = (amount * percent) / D(100)
+                    sponsor.earn_balance = (sponsor.earn_balance or D(0)) + commission
+                    Transaction.create(
+                        db,
+                        user_id=sponsor.id,
+                        type=TransactionType.referral_commission,
+                        amount_trx=commission,
+                        balance_type=BalanceType.earn_balance,
+                        reference_id=str(camp.id),
+                        description="Sponsor commission on campaign recharge",
+                    )
+                    # Notify sponsor
+                    try:
+                        spons_tid = int(sponsor.telegram_id)
+                    except Exception:
+                        spons_tid = sponsor.telegram_id
+                    username = user.username or "user"
+                    msg = (
+                        f"🎉 *Commission Received*\n"
+                        f"You have received {escape_markdown_v2(str(int(percent)))}\% on a campaign recharge by @" 
+                        f"{escape_markdown_v2(username)}\n"
+                        f"Amount\\: {format_trx_escaped(commission)} TRX"
+                    )
+                    safe_notify_user(spons_tid, msg)
+        except Exception as e:
+            logger.error(f"[SponsorCommission] Failed to apply sponsor commission: {e}")
         db.commit()
         await reply_ephemeral(update, f"Campaign {camp.id} recharged by {amount}")

@@ -99,14 +99,19 @@ def campaign_insufficient_balance() -> str:
     return "⛔ The campaign has insufficient balance\\."
 
 
-def referral_overview(bot_username: str, referral_code: str, task_rate: float, deposit_rate: float) -> str:
+def referral_overview(bot_username: str, referral_code: str, task_rate: float, deposit_rate: float, referral_count: int, total_earned: Decimal) -> str:
     sep = get_separator()
     link = f"https://t.me/{_esc(bot_username)}?start={_esc(referral_code)}"
     return (
         "👥 Referral Program\n"
         f"{sep}\n"
-        f"Your referral link\\:\n`{link}`\n\n"
-        f"Commissions\\:\n• Tasks\\: `{format_trx_escaped(task_rate * 100)}%`\n• Deposits\\: `{format_trx_escaped(deposit_rate * 100)}%`"
+        f"Your referral link\\(click to copy\\)\\:\n`{link}`\n\n"
+        f"Stats\\:\n"
+        f"• Referrals\\: `{referral_count}`\n"
+        f"• Total earned\\: `{format_trx_escaped(total_earned)} TRX`\n\n"
+        f"Commissions\\:\n"
+        f"• Tasks\\: `{format_trx_escaped(task_rate * 100)}%`\n"
+        f"• Deposits\\: `{format_trx_escaped(deposit_rate * 100)}%`"
     )
 
 
@@ -129,7 +134,12 @@ def balance_overview(earn_balance: Decimal, ad_balance: Decimal) -> str:
 
 
 def history_intro() -> str:
-    return "📜 History\nChoose a filter below\\:"
+    sep = get_separator()
+    return (
+        "📜 History\n"
+        f"{sep}\n"
+        "Choose a filter below to view your transactions\."
+    )
 
 
 def history_list(title: str, lines: list[str]) -> str:
@@ -202,18 +212,19 @@ def create_campaign_created(campaign_id: int) -> str:
 
 
 # ==================== My Ads (Owner view) ====================
-def my_ad_overview(title: str, bot_username: str, amount_per_referral: Decimal, balance: Decimal, is_active: bool, idx: int, total: int) -> str:
+def my_ad_overview(title: str, bot_username: str, amount_per_referral: Decimal, balance: Decimal, is_active: bool, referral_count: int, idx: int, total: int) -> str:
     sep = get_separator()
     status_emoji = "🟢" if is_active else "⏸️"
     status_text = "Active" if is_active else "Paused"
     return (
         f"📢 My Ad \\({idx}/{total}\\)\n"
         f"{sep}\n"
-        f"Title\: `{_esc(title)}`\n"
-        f"Bot\: `@{_esc(bot_username)}`\n"
-        f"Reward per referral\: `{format_trx_escaped(amount_per_referral)} TRX`\n"
-        f"Balance\: `{format_trx_escaped(balance)} TRX`\n"
-        f"Status\: {status_emoji} {status_text}"
+        f"Title\\: `{_esc(title)}`\n"
+        f"Bot\\: `@{_esc(bot_username)}`\n"
+        f"Reward per referral\\: `{format_trx_escaped(amount_per_referral)} TRX`\n"
+        f"Balance\\: `{format_trx_escaped(balance)} TRX`\n"
+        f"Referrals\\: `{referral_count}`\n"
+        f"Status\\: {status_emoji} {status_text}"
     )
 
 

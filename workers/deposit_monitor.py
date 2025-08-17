@@ -61,49 +61,6 @@ def forward_deposit_to_main_wallet(wallet: UserWallet, amount: Decimal, deposit_
 def monitor_deposits():
     logger.info("[Worker] Monitoring TRON deposits started.")
     call_count = 0
-<<<<<<< HEAD
-    with get_db_session() as session:
-        try:
-            wallets = session.query(UserWallet).all()
-            for wallet in wallets:
-                call_count += 1
-                if call_count % 10 == 0:  # Every 10th call
-                    time.sleep(1.2)  # Sleep for 1.2 seconds
-                txs = get_trx_transactions(wallet.address)
-                for tx in txs:
-                    exists = session.query(Deposit).filter_by(tx_hash=tx['txID']).first()
-                    if not exists:
-                        amount = Decimal(tx['amount']) / Decimal('1000000')
-                        deposit = Deposit(
-                            user_id=wallet.user_id,
-                            wallet_id=wallet.id,
-                            tx_hash=tx['txID'],
-                            amount_trx=amount,
-                            confirmations=tx.get('confirmations', 0),
-                            status=DepositStatus.confirmed if tx.get('confirmations', 0) >= 19 else DepositStatus.pending,
-                            created_at=get_utc_time(),
-                            confirmed_at=get_utc_time() if tx.get('confirmations', 0) >= 19 else None
-                        )
-                        session.add(deposit)
-                        if deposit.status == DepositStatus.confirmed:
-                            user = session.query(User).get(wallet.user_id)
-                            # Credit advertiser balance on deposit
-                            user.ad_balance += amount
-                            session.add(Transaction(
-                                user_id=user.id,
-                                type=TransactionType.deposit,
-                                amount_trx=amount,
-                                balance_type=BalanceType.ad_balance,
-                                description=f"Deposit {tx['txID']}",
-                                reference_id=deposit.id
-                            ))
-                            session.commit()
-                            logger.info(f"[Deposit] {amount} TRX credited to user {user.id} (tx {tx['txID']})")
-                            # Telegram notification
-                            msg = f"💰 *Deposit of {format_trx_escaped(amount)} TRX confirmed*\\.\n"
-                            msg += f"TX\\: `{escape_markdown_v2(tx['txID'])}`"
-                            safe_notify_user(user.telegram_id, msg, reply_markup=transaction_details_inline_keyboard(tx['txID']))
-=======
     try:
         wallets = WalletService.list_wallets()
         for wallet in wallets:
@@ -129,7 +86,6 @@ def monitor_deposits():
                         msg = f"💰 *Deposit of {format_trx_escaped(amount)} TRX confirmed*\\.\n"
                         msg += f"TX\\: `{escape_markdown_v2(tx['txID'])}`"
                         safe_notify_user(user.telegram_id, msg, reply_markup=transaction_details_inline_keyboard(tx['txID']))
->>>>>>> feature/extract-db-interactions-in-services
 
                         forward_deposit_to_main_wallet(wallet, amount, tx['txID'])
     except Exception as e:

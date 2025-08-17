@@ -38,7 +38,7 @@ def process_withdrawals():
                         wd.tx_hash = tx_hash
                         wd.status = WithdrawalStatus.completed
                         wd.processed_at = get_utc_time()
-                        user.earn_balance -= Decimal(wd.amount_trx)
+                        
                         # Update original transaction record to completed rather than creating a new one
                         tx_record = session.query(Transaction).filter_by(reference_id=str(wd.id), type=TransactionType.withdrawal).first()
                         if tx_record:
@@ -51,6 +51,7 @@ def process_withdrawals():
                         safe_notify_user(user.telegram_id, msg, reply_markup=transaction_details_inline_keyboard(tx_hash))
                     except Exception as e:
                         wd.status = WithdrawalStatus.failed
+                        user.earn_balance += Decimal(wd.amount_trx)
                         # Also mark original transaction as failed
                         tx_record = session.query(Transaction).filter_by(reference_id=str(wd.id), type=TransactionType.withdrawal).first()
                         if tx_record:

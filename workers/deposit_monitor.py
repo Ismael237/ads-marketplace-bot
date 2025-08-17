@@ -102,7 +102,7 @@ def monitor_deposits():
                                 amount_trx=amount,
                                 balance_type=BalanceType.ad_balance,
                                 description=f"Deposit {tx['txID']}",
-                                reference_id=tx['txID']
+                                reference_id=deposit.id
                             ))
                             session.commit()
                             logger.info(f"[Deposit] {amount} TRX credited to user {user.id} (tx {tx['txID']})")

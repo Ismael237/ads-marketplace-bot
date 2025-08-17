@@ -1,36 +1,63 @@
 from __future__ import annotations
 
 from decimal import Decimal
-from sqlalchemy.orm import Session
+from typing import Tuple
 
-from database.models import User, ReferralCommission, CommissionType
+from sqlalchemy import func
+
+from database.database import get_db_session
+from database.models import (
+    User,
+    ReferralCommission,
+    CommissionType,
+    CommissionStatus,
+)
 
 
 class ReferralService:
-    def __init__(self, db: Session):
-        self.db = db
+    @staticmethod
+    def get_user_by_telegram_id(telegram_id: str) -> User | None:
+        with get_db_session() as db:
+            return db.query(User).filter(User.telegram_id == str(telegram_id)).first()
 
+    @staticmethod
+    def get_overview(user_id: int) -> Tuple[int, Decimal]:
+        """Return (referral_count, total_earned) for a given user_id."""
+        with get_db_session() as db:
+            referral_count = db.query(User).filter(User.sponsor_id == int(user_id)).count()
+            total_earned = (
+                db.query(func.coalesce(func.sum(ReferralCommission.amount_trx), 0))
+                .filter(ReferralCommission.user_id == int(user_id))
+                .scalar()
+            )
+            return referral_count, Decimal(str(total_earned))
+
+    @staticmethod
     def pay_task_commission(
-        self,
-        sponsor: User,
-        referred_user: User,
+        sponsor_id: int,
+        referred_user_id: int,
         amount_trx: Decimal,
         percentage: Decimal,
         participation_id: int,
     ) -> ReferralCommission:
-        commission_amount = (amount_trx * percentage).quantize(Decimal("0.000001"))
-        rc = ReferralCommission.create(
-            self.db,
-            user_id=sponsor.id,
-            referred_user_id=referred_user.id,
-            participation_id=participation_id,
-            deposit_id=None,
-            type=CommissionType.task_completion,
-            amount_trx=commission_amount,
-            percentage=percentage,
-        )
-        sponsor.earn_balance += commission_amount
-        sponsor.save(self.db)
-        return rc
-
-
+        """Create a task-completion referral commission and credit sponsor's balance."""
+        with get_db_session() as db:
+            sponsor = db.query(User).get(int(sponsor_id))
+            if not sponsor:
+                raise ValueError("sponsor_not_found")
+            commission_amount = (amount_trx * percentage).quantize(Decimal("0.000001"))
+            rc = ReferralCommission(
+                user_id=sponsor.id,
+                referred_user_id=int(referred_user_id),
+                participation_id=int(participation_id),
+                deposit_id=None,
+                type=CommissionType.task_completion,
+                status=CommissionStatus.paid,
+                amount_trx=commission_amount,
+                percentage=percentage,
+            )
+            db.add(rc)
+            sponsor.earn_balance = (sponsor.earn_balance or Decimal("0")) + commission_amount
+            db.commit()
+            db.refresh(rc)
+            return rc

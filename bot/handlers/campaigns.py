@@ -14,6 +14,8 @@ from bot.keyboards import (
     create_campaign_confirm_inline_keyboard,
     recharge_reply_keyboard,
     confirm_recharge_keyboard,
+    CONFIRM_CREATE_CAMPAIGN_BTN,
+    CANCEL_CREATE_CAMPAIGN_BTN,
 )
 from bot.utils import reply_ephemeral, safe_notify_user
 from bot import messages
@@ -170,6 +172,39 @@ async def on_create_campaign_text(update: Update, context: ContextTypes.DEFAULT_
             reply_markup=create_campaign_confirm_inline_keyboard(),
         )
         return
+    elif state == "confirm":
+        # Reply keyboard confirm/cancel actions
+        if text_in == CONFIRM_CREATE_CAMPAIGN_BTN:
+            bot_link = context.user_data.get(CREATE_CAMPAIGN_LINK_KEY)
+            bot_username = context.user_data.get(CREATE_CAMPAIGN_USERNAME_KEY)
+            title = context.user_data.get(CREATE_CAMPAIGN_TITLE_KEY) or bot_username or ""
+            if not bot_link or not bot_username:
+                await reply_ephemeral(update, "Missing campaign data. Please start again with '➕ Create Ad'.")
+                return
+            amount_dec = Decimal(str(config.AMOUNT_PER_REFERRAL))
+            user = CampaignService.get_user_by_telegram_id(str(update.effective_user.id))
+            if not user:
+                await reply_ephemeral(update, "Please /start first")
+                return
+            camp = CampaignService.create_campaign(
+                owner=user,
+                title=title,
+                bot_link=bot_link,
+                bot_username=bot_username,
+                amount_per_referral=amount_dec,
+            )
+            # clear state
+            for k in [CREATE_CAMPAIGN_STATE_KEY, CREATE_CAMPAIGN_LINK_KEY, CREATE_CAMPAIGN_USERNAME_KEY, CREATE_CAMPAIGN_TITLE_KEY]:
+                context.user_data.pop(k, None)
+            await reply_ephemeral(update, messages.create_campaign_created(camp.id), reply_markup=ads_reply_keyboard())
+            # Show updated list of user's campaigns
+            await show_my_ads(update, context)
+            return
+        if text_in == CANCEL_CREATE_CAMPAIGN_BTN:
+            for k in [CREATE_CAMPAIGN_STATE_KEY, CREATE_CAMPAIGN_LINK_KEY, CREATE_CAMPAIGN_USERNAME_KEY, CREATE_CAMPAIGN_TITLE_KEY]:
+                context.user_data.pop(k, None)
+            await reply_ephemeral(update, messages.create_campaign_cancelled(), reply_markup=ads_reply_keyboard())
+            return
 
 
 async def on_create_campaign_forward(update: Update, context: ContextTypes.DEFAULT_TYPE):

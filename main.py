@@ -88,7 +88,7 @@ def running_application() -> Application:
 
     # Pagination for history
     app.add_handler(CommandHandler("history", history))
-    app.add_handler(CallbackQueryHandler(history_pagination, pattern=r"^history_(?:all|deposits|investments|withdrawals)_page_\d+$"))
+    app.add_handler(CallbackQueryHandler(history_pagination, pattern=r"^history_(?:all|deposits|ads|withdrawals)_page_\d+$"))
     
     # Referral handlers
     app.add_handler(CommandHandler("referral", referral_handler))

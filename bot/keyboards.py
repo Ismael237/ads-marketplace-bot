@@ -42,7 +42,7 @@ CONFIRM_RECHARGE_BTN = "✅ Confirm Recharge"
 # History Buttons
 ALL_TRANSACTIONS_BTN = "📋 All Transactions"
 DEPOSITS_ONLY_BTN = "📥 Deposits Only"
-INVESTMENTS_ONLY_BTN = "📈 Investments Only"
+ADS_ONLY_BTN = "📈 Ads Only"
 WITHDRAWALS_ONLY_BTN = "📤 Withdrawals Only"
 
 # Settings Buttons
@@ -122,6 +122,7 @@ def history_reply_keyboard():
     keyboard = [
         [ALL_TRANSACTIONS_BTN],
         [DEPOSITS_ONLY_BTN, WITHDRAWALS_ONLY_BTN],
+        [ADS_ONLY_BTN],
         [MAIN_MENU_BTN]
     ]
     return ReplyKeyboardMarkup(

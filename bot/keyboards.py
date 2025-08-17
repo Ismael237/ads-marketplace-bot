@@ -10,8 +10,8 @@ DEPOSIT_BTN = "💰 Deposit"
 WITHDRAW_BTN = "🏧 Withdraw"
 REFERRAL_BTN = "👥 Referral"
 HISTORY_BTN = "📜 History"
-SETTINGS_BTN = "⚙️ Settings"
-WALLET_BTN = "💼 Wallet"
+INFO_BTN = "ℹ️ Info"
+FUND_BTN = "💰 Funds"
 
 # Navigation Buttons
 MAIN_MENU_BTN = "🏠 Main Menu"
@@ -38,6 +38,7 @@ RECHARGE_10_BTN = "10 TRX"
 RECHARGE_50_BTN = "50 TRX"
 RECHARGE_100_BTN = "100 TRX"
 CONFIRM_RECHARGE_BTN = "✅ Confirm Recharge"
+CONFIRM_CREATE_CAMPAIGN_BTN = "✅ Confirm Campaign"
 
 # History Buttons
 ALL_TRANSACTIONS_BTN = "📋 All Transactions"
@@ -60,9 +61,8 @@ def main_reply_keyboard():
     """Main menu keyboard with primary bot functions (persistent)."""
     keyboard = [
         [BROWSE_BTN, MY_ADS_BTN],
-        [BALANCE_BTN, DEPOSIT_BTN],
-        [WALLET_BTN, REFERRAL_BTN],
-        [SETTINGS_BTN],
+        [FUND_BTN, DEPOSIT_BTN, BALANCE_BTN],
+        [REFERRAL_BTN, INFO_BTN],
     ]
     return ReplyKeyboardMarkup(
         keyboard,
@@ -159,9 +159,8 @@ def confirm_recharge_keyboard():
 def settings_reply_keyboard():
     """Settings submenu keyboard"""
     keyboard = [
-        [HELP_BTN, SUPPORT_BTN],
-        [ABOUT_BTN, Q_A_BTN],
-        [REFERRAL_INFO_BTN],
+        [REFERRAL_INFO_BTN, HELP_BTN],
+        [SUPPORT_BTN, ABOUT_BTN, Q_A_BTN],
         [MAIN_MENU_BTN]
     ]
     return ReplyKeyboardMarkup(
@@ -173,8 +172,8 @@ def settings_reply_keyboard():
 def wallet_reply_keyboard():
     """Wallet submenu keyboard: Deposit, Withdraw, History"""
     keyboard = [
-        [DEPOSIT_BTN, WITHDRAW_BTN],
-        [HISTORY_BTN],
+        [DEPOSIT_BTN],
+        [BALANCE_BTN, WITHDRAW_BTN, HISTORY_BTN],
         [MAIN_MENU_BTN],
     ]
     return ReplyKeyboardMarkup(
@@ -295,9 +294,13 @@ def withdraw_confirm_inline_keyboard():
 
 
 def create_campaign_confirm_inline_keyboard():
-    return InlineKeyboardMarkup([
-        [InlineKeyboardButton(text="✅ Confirm", callback_data="create_campaign_confirm")],
-        [InlineKeyboardButton(text="❌ Cancel Creation", callback_data="create_campaign_cancel")],
-    ])
-
-
+    """Reply keyboard for confirming or canceling campaign creation."""
+    keyboard = [
+        [CONFIRM_CREATE_CAMPAIGN_BTN],
+        [CANCEL_CREATE_CAMPAIGN_BTN],
+    ]
+    return ReplyKeyboardMarkup(
+        keyboard,
+        resize_keyboard=True,
+        one_time_keyboard=False
+    )

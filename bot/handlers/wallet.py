@@ -6,7 +6,13 @@ from telegram.ext import ContextTypes
 
 from services.wallet_service import WalletService
 from bot.utils import reply_ephemeral
-from bot.keyboards import main_reply_keyboard, withdraw_reply_keyboard, cancel_withdraw_keyboard, withdraw_confirm_inline_keyboard, CANCEL_WITHDRAW_BTN
+from bot.keyboards import (
+    main_reply_keyboard,
+    withdraw_reply_keyboard,
+    cancel_withdraw_keyboard,
+    withdraw_confirm_inline_keyboard,
+    CANCEL_WITHDRAW_BTN,
+)
 from bot import messages
 from utils.validators import is_valid_tron_address
 import config
@@ -79,7 +85,7 @@ async def on_withdraw_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
         context.user_data.pop(WITHDRAW_STATE_KEY, None)
         context.user_data.pop(WITHDRAW_AMOUNT_KEY, None)
         context.user_data.pop(WITHDRAW_ADDRESS_KEY, None)
-        await reply_ephemeral(update, messages.withdraw_cancelled())
+        await reply_ephemeral(update, messages.withdraw_cancelled(), reply_markup=main_reply_keyboard())
         return
     if state == "ask_amount":
         amount = _parse_amount_text(text_in)

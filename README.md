@@ -145,6 +145,11 @@ bot-marketplace/
 - **Audit**: Complete logs of all critical operations
 - **Isolation**: Separation of earn_balance and ad_balance
 
+## Version
+
+- Current version: 1.0.1
+- Release type: Patch
+
 ## Support
 
 For any questions or issues, consult the technical documentation in `devbook.md` or the development plan in `roadmap.md`.

@@ -9,7 +9,7 @@ from services.campaign_service import CampaignService
 from bot.keyboards import campaigns_browse_keyboard, report_reasons_keyboard
 from bot.utils import reply_ephemeral, safe_notify_user
 from bot import messages
-from utils.helpers import get_utc_date, get_utc_time, escape_markdown_v2, format_trx_escaped
+from utils.helpers import escape_markdown_v2, format_trx_escaped
 from decimal import Decimal
 import config
 
@@ -28,8 +28,8 @@ def _generate_campaign_view(update: Update, context: ContextTypes.DEFAULT_TYPE, 
     if not campaigns:
         return False, "No active campaigns"
     if index >= len(campaigns):
-        msg = "You've reached the end of the campaign list\.\n"
-        msg += "There are no more active campaigns available\.\n"
+        msg = "You've reached the end of the campaign list\\.\n"
+        msg += "There are no more active campaigns available\\.\n"
         return False, msg
     camp = campaigns[index]
     # Validate required attributes
@@ -44,7 +44,7 @@ def _generate_campaign_view(update: Update, context: ContextTypes.DEFAULT_TYPE, 
     user_reward = Decimal(str(apr * user_pct)).quantize(Decimal("0.000001"))
     title = getattr(camp, 'title', 'Untitled Campaign')
     text = messages.browse_campaign(title, user_reward)
-    return True, {"text": text, "kb": kb, "index": index}
+    return True, {"text": text, "kb": kb, "index": index, "campaign_id": camp.id}
 
 
 async def _send_campaign(update: Update, context: ContextTypes.DEFAULT_TYPE, index: int = 0):
@@ -53,6 +53,8 @@ async def _send_campaign(update: Update, context: ContextTypes.DEFAULT_TYPE, ind
         await reply_ephemeral(update, payload)
         return
     context.user_data["browse_index"] = payload["index"]
+    # Store the precise campaign id for subsequent forward validation
+    context.user_data["current_campaign_id"] = payload["campaign_id"]
     await reply_ephemeral(update, payload["text"], reply_markup=payload["kb"])
 
 
@@ -100,13 +102,22 @@ async def forward_validator(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
     part = None
     camp = None
-    # Validate forward source
-    origin_username = _get_forward_origin_username(update.message)
-    # If no pending participation, try to infer campaign from forward origin
-    if origin_username:
-        camp = ParticipationService.find_campaign_by_forward_origin_for_user(str(update.effective_user.id), origin_username)
+    # Prefer exact campaign id from browsing context if available
+    try:
+        camp_id_ctx = context.user_data.get("current_campaign_id")
+    except Exception:
+        camp_id_ctx = None
+    # If no campaign id in context, do not fallback: inform user to browse first
+    if not camp_id_ctx:
+        await reply_ephemeral(update, messages.forward_context_missing())
+        try:
+            context.user_data.pop("current_campaign_id", None)
+        except Exception:
+            pass
+        return
+    if camp_id_ctx:
+        camp = ParticipationService.get_campaign_by_id(int(camp_id_ctx))
         if camp:
-            # Centralized rule check with explicit reason
             allowed, reason = CampaignService.can_user_participate(camp, user)
             if not allowed:
                 if reason == "inactive":
@@ -116,11 +127,18 @@ async def forward_validator(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 elif reason == "validated_today":
                     await reply_ephemeral(update, messages.campaign_already_validated_today())
                 else:
-                    # generic fallback (e.g. existing pending/validated, blocked, etc.)
                     await reply_ephemeral(update, messages.campaign_participation_blocked())
+                # Clean current campaign id from context on failure
+                try:
+                    context.user_data.pop("current_campaign_id", None)
+                except Exception:
+                    pass
                 return
             else:
                 part = ParticipationService.start_participation(camp.id, user.id)
+
+    # Validate forward source
+    origin_username = _get_forward_origin_username(update.message)
 
     if part is None:
         return
@@ -130,6 +148,11 @@ async def forward_validator(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not origin_username or origin_username.lower() != (camp.bot_username or "").lower():
         await reply_ephemeral(update, messages.forward_not_from_expected())
         ParticipationService.mark_participation_failed(part.id)
+        # Clean current campaign id from context on failure
+        try:
+            context.user_data.pop("current_campaign_id", None)
+        except Exception:
+            pass
         return
     ParticipationService.set_forward_and_generate_link(part.id, str(update.message.message_id))
     # Immediately process validation and payments (MVP):
@@ -166,7 +189,7 @@ async def forward_validator(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 f"🎉 *Commission Received*\n"
                 f"You have received {escape_markdown_v2(str(int(sponsor_pct * 100)))}% on a validated participation by @"
                 f"{escape_markdown_v2(username)}\n"
-                f"Amount\: {format_trx_escaped(sponsor_commission)} TRX"
+                f"Amount\\: {format_trx_escaped(sponsor_commission)} TRX"
             )
             safe_notify_user(spons_tid, msg)
 
@@ -174,11 +197,12 @@ async def forward_validator(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if admin_remainder > 0:
         msg = (
             f"🎉 *Admin Commission Received*\n"
-            f"Amount\: {format_trx_escaped(admin_remainder)} TRX"
+            f"Amount\\: {format_trx_escaped(admin_remainder)} TRX"
         )
         safe_notify_user(config.TELEGRAM_ADMIN_ID, msg)
 
     await reply_ephemeral(update, messages.participation_validated(user_reward))
+    await _send_campaign(update, context)
 
 
 async def on_campaign_skip(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -195,6 +219,8 @@ async def on_campaign_skip(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await reply_ephemeral(update, payload)
         return
     context.user_data["browse_index"] = payload["index"]
+    # Update current campaign id on skip as well
+    context.user_data["current_campaign_id"] = payload["campaign_id"]
     # Edit current message in place instead of sending a new one
     await query.edit_message_text(
         payload["text"],

@@ -32,13 +32,12 @@ from bot.keyboards import (
     ADS_LIST_BTN,
     ALL_TRANSACTIONS_BTN,
     DEPOSITS_ONLY_BTN,
-    INVESTMENTS_ONLY_BTN,
+    ADS_ONLY_BTN,
     WITHDRAWALS_ONLY_BTN,
     history_reply_keyboard,
     settings_reply_keyboard,
     main_reply_keyboard,
     ads_reply_keyboard,
-    withdraw_reply_keyboard,
     wallet_reply_keyboard,
     CANCEL_RECHARGE_BTN,
     CONFIRM_RECHARGE_BTN,
@@ -49,7 +48,6 @@ from bot.handlers.wallet import (
     WITHDRAW_ADDRESS_KEY,
     WITHDRAW_AMOUNT_KEY,
     deposit as wallet_deposit,
-    on_withdraw_callback,
     withdraw as wallet_withdraw,
     on_withdraw_text,
     WITHDRAW_STATE_KEY,
@@ -224,11 +222,11 @@ async def handle_menu_selection(update, context):
     elif text == MAIN_MENU_BTN:
         await on_main_menu(update, context)
     # History filters via reply keyboard
-    elif text in {ALL_TRANSACTIONS_BTN, DEPOSITS_ONLY_BTN, INVESTMENTS_ONLY_BTN, WITHDRAWALS_ONLY_BTN}:
+    elif text in {ALL_TRANSACTIONS_BTN, DEPOSITS_ONLY_BTN, ADS_ONLY_BTN, WITHDRAWALS_ONLY_BTN}:
         mapping = {
             ALL_TRANSACTIONS_BTN: "all",
             DEPOSITS_ONLY_BTN: "deposits",
-            INVESTMENTS_ONLY_BTN: "investments",
+            ADS_ONLY_BTN: "ads",
             WITHDRAWALS_ONLY_BTN: "withdrawals",
         }
         await show_history(update, context, mapping[text], page=1)

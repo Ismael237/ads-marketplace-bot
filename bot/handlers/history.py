@@ -1,18 +1,18 @@
 from __future__ import annotations
 
-from math import ceil
 from typing import Literal
 from telegram import Update
 from telegram.constants import ParseMode
 from telegram.ext import ContextTypes
 
-from database.database import get_db_session
-from database.models import Transaction, TransactionType
+from database.models import TransactionType
 from bot.utils import reply_ephemeral
 from bot.keyboards import pagination_inline_keyboard, history_reply_keyboard
 from bot import messages
 import config
 from utils.helpers import escape_markdown_v2, get_separator, format_trx_escaped
+from services.wallet_service import WalletService
+from services.referral_service import ReferralService
 
 HistoryFilter = Literal["all", "deposits", "ads", "withdrawals"]
 
@@ -21,21 +21,9 @@ def _filter_to_title(filter_key: HistoryFilter) -> str:
     return {
         "all": "All Transactions",
         "deposits": "Deposits",
-        "ads": "Investments",
+        "ads": "ads",
         "withdrawals": "Withdrawals",
     }[filter_key]
-
-
-def _apply_filter(q, filter_key: HistoryFilter):
-    if filter_key == "all":
-        return q
-    if filter_key == "deposits":
-        return q.filter(Transaction.type == TransactionType.deposit)
-    if filter_key == "ads":
-        return q.filter(Transaction.type == TransactionType.campaign_spend)
-    if filter_key == "withdrawals":
-        return q.filter(Transaction.type == TransactionType.withdrawal)
-    return q
 
 
 async def history(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -47,30 +35,23 @@ async def show_history(update: Update, context: ContextTypes.DEFAULT_TYPE, filte
     if not user:
         return
     page_size = int(getattr(config, "HISTORY_PAGE_SIZE", 3))
-    # Query user transactions
-    with get_db_session() as db:
-        base_q = db.query(Transaction).filter(Transaction.user_id == context.user_data.get("db_user_id", 0))
-        # Fallback: try to resolve by telegram id if not cached
-        if not context.user_data.get("db_user_id"):
-            # Lazy lookup and cache
-            from database.models import User  # local import to avoid cycle
-            u = db.query(User).filter(User.telegram_id == str(user.id)).first()
-            if not u:
-                await reply_ephemeral(update, "Please /start first")
-                return
-            context.user_data["db_user_id"] = u.id
-            base_q = db.query(Transaction).filter(Transaction.user_id == u.id)
 
-        q = _apply_filter(base_q, filter_key)
-        total = q.count()
-        total_pages = max(1, ceil(total / page_size))
-        page = max(1, min(page, total_pages))
-        items = (
-            q.order_by(Transaction.id.desc())
-             .offset((page - 1) * page_size)
-             .limit(page_size)
-             .all()
-        )
+    # Resolve DB user id via service and fetch paginated transactions
+    db_user_id = context.user_data.get("db_user_id")
+    if not db_user_id:
+        db_user = ReferralService.get_user_by_telegram_id(str(user.id))
+        if not db_user:
+            await reply_ephemeral(update, "Please /start first")
+            return
+        db_user_id = db_user.id
+        context.user_data["db_user_id"] = db_user_id
+
+    items, total_pages, page = WalletService.get_transactions_for_user(
+        user_id=int(db_user_id),
+        filter_key=filter_key,
+        page=page,
+        page_size=page_size,
+    )
 
     # Render and send/edit page
     await _send_transactions_page(
@@ -88,7 +69,7 @@ async def history_pagination(update: Update, context: ContextTypes.DEFAULT_TYPE)
     if not query:
         return
     await query.answer()
-    # pattern: history_(all|deposits|investments|withdrawals)_page_<n>
+    # pattern: history_(all|deposits|ads|withdrawals)_page_<n>
     data = query.data
     try:
         prefix, _, page_str = data.rpartition("_page_")

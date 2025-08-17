@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from decimal import Decimal
+from math import ceil
 
 from database.database import get_db_session
 from database.models import (
@@ -55,6 +56,38 @@ class WalletService:
             return None
         uw = WalletService.get_or_create_user_wallet(user.id)
         return uw.address
+
+    # ===== History / Transactions =====
+    @staticmethod
+    def _apply_history_filter(q, filter_key: str):
+        if filter_key == "all":
+            return q
+        if filter_key == "deposits":
+            return q.filter(Transaction.type == TransactionType.deposit)
+        if filter_key == "ads":
+            return q.filter(Transaction.type == TransactionType.campaign_spend)
+        if filter_key == "withdrawals":
+            return q.filter(Transaction.type == TransactionType.withdrawal)
+        return q
+
+    @staticmethod
+    def get_transactions_for_user(user_id: int, filter_key: str, page: int, page_size: int) -> tuple[list[Transaction], int, int]:
+        """Return (items, total_pages, page) for a user's transactions.
+        filter_key in {"all","deposits","ads","withdrawals"}
+        """
+        with get_db_session() as db:
+            base_q = db.query(Transaction).filter(Transaction.user_id == int(user_id))
+            q = WalletService._apply_history_filter(base_q, filter_key)
+            total = q.count()
+            total_pages = max(1, ceil(total / page_size))
+            page = max(1, min(page, total_pages))
+            items = (
+                q.order_by(Transaction.id.desc())
+                 .offset((page - 1) * page_size)
+                 .limit(page_size)
+                 .all()
+            )
+            return items, total_pages, page
 
     # ===== Withdrawals =====
     @staticmethod

@@ -12,6 +12,7 @@ from database.models import (
     CommissionType,
     CommissionStatus,
 )
+from utils.helpers import generate_referral_code
 
 
 class ReferralService:
@@ -61,3 +62,36 @@ class ReferralService:
             db.commit()
             db.refresh(rc)
             return rc
+
+    @staticmethod
+    def ensure_user(telegram_id: str, username: str | None = None, sponsor_referral_code: str | None = None) -> User:
+        """Get or create a user. If creating, set sponsor by referral code when provided.
+        Returns the persisted User.
+        """
+        with get_db_session() as db:
+            # Try existing
+            user = db.query(User).filter(User.telegram_id == str(telegram_id)).first()
+            if user:
+                # Optionally update username if changed
+                new_username = username or None
+                if new_username is not None and new_username != user.username:
+                    user.username = new_username
+                    db.commit()
+                    db.refresh(user)
+                return user
+
+            sponsor_id = None
+            if sponsor_referral_code:
+                sponsor = db.query(User).filter(User.referral_code == sponsor_referral_code).first()
+                if sponsor:
+                    sponsor_id = sponsor.id
+
+            # Create new user
+            user = User.create(
+                db,
+                telegram_id=str(telegram_id),
+                username=username or None,
+                referral_code=generate_referral_code(),
+                sponsor_id=sponsor_id,
+            )
+            return user

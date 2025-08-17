@@ -19,9 +19,9 @@ from bot.keyboards import (
     DEPOSIT_BTN,
     WITHDRAW_BTN,
     REFERRAL_BTN,
-    SETTINGS_BTN,
+    INFO_BTN,
     HISTORY_BTN,
-    WALLET_BTN,
+    FUND_BTN,
     HELP_BTN,
     SUPPORT_BTN,
     ABOUT_BTN,
@@ -68,8 +68,7 @@ from bot.handlers.campaigns import (
     MYADS_RECHARGE_CAMP_ID_KEY,
 )
 from bot.handlers.referral import referral as referral_handler
-from bot.handlers.history import history as history_handler, show_history
-
+from bot.handlers.history import show_history
 
 async def on_browse(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await browse_bots(update, context)
@@ -100,6 +99,8 @@ async def on_cancel_withdraw(update: Update, context: ContextTypes.DEFAULT_TYPE)
     context.user_data.pop(WITHDRAW_ADDRESS_KEY, None)
     await reply_ephemeral(update, messages.withdraw_cancelled(), reply_markup=main_reply_keyboard())
 
+async def on_confirm_create_campaign(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await create_campaign_handler(update, context)
 
 async def on_cancel_create_campaign(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data.pop(CREATE_CAMPAIGN_STATE_KEY, None)
@@ -182,6 +183,8 @@ async def handle_menu_selection(update, context):
 
     if text == BROWSE_BTN:
         await on_browse(update, context)
+    elif text == MAIN_MENU_BTN:
+        await on_main_menu(update, context)
     elif text == BALANCE_BTN:
         await on_balance(update, context)
     elif text == DEPOSIT_BTN:
@@ -190,9 +193,9 @@ async def handle_menu_selection(update, context):
         await on_withdraw(update, context)
     elif text == REFERRAL_BTN:
         await on_referral(update, context)
-    elif text == SETTINGS_BTN:
+    elif text == INFO_BTN:
         await on_settings(update, context)
-    elif text == WALLET_BTN:
+    elif text == FUND_BTN:
         await reply_ephemeral(update, "Wallet:", reply_markup=wallet_reply_keyboard())
     elif text == HISTORY_BTN:
         await on_history(update, context)
@@ -200,11 +203,12 @@ async def handle_menu_selection(update, context):
         await reply_ephemeral(update, "My Ads:", reply_markup=ads_reply_keyboard())
         await show_my_ads(update, context, page=1)
     elif text == ADS_CREATE_BTN:
-        # start assistant mode
         context.args = []
         await create_campaign_handler(update, context)
     elif text == ADS_LIST_BTN:
         await show_my_ads(update, context, page=1)
+    elif text == CONFIRM_CREATE_CAMPAIGN_BTN:
+        await on_confirm_create_campaign(update, context)
     elif text == CANCEL_CREATE_CAMPAIGN_BTN:
         await on_cancel_create_campaign(update, context)
     elif text == HELP_BTN:
@@ -219,9 +223,6 @@ async def handle_menu_selection(update, context):
         await on_referral_info(update, context)
     elif text == CANCEL_WITHDRAW_BTN:
         await on_cancel_withdraw(update, context)
-    elif text == MAIN_MENU_BTN:
-        await on_main_menu(update, context)
-    # History filters via reply keyboard
     elif text in {ALL_TRANSACTIONS_BTN, DEPOSITS_ONLY_BTN, ADS_ONLY_BTN, WITHDRAWALS_ONLY_BTN}:
         mapping = {
             ALL_TRANSACTIONS_BTN: "all",

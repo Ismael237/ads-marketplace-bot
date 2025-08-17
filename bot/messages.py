@@ -1,7 +1,7 @@
 from decimal import Decimal
 from typing import Optional
 import config
-from utils.helpers import escape_markdown_v2, get_separator, format_trx_escaped
+from utils.helpers import escape_markdown_v2, generate_share_link, get_separator, format_trx_escaped
 
 
 def _esc(text: str) -> str:
@@ -92,6 +92,13 @@ def forward_not_from_expected() -> str:
     return "⚠️ The forwarded message is not from the expected bot\\."
 
 
+def forward_context_missing() -> str:
+    return (
+        "⚠️ No campaign in context\\.\n"
+        "Please browse a campaign from the menu, tap Message Bot, then forward a recent message here\."
+    )
+
+
 def participation_validated(amount: Decimal) -> str:
     return f"🎉 Task validated\\! Earned `{format_trx_escaped(amount)} TRX`"
 
@@ -102,7 +109,7 @@ def campaign_insufficient_balance() -> str:
 
 def referral_overview(bot_username: str, referral_code: str, task_rate: float, deposit_rate: float, referral_count: int, total_earned: Decimal) -> str:
     sep = get_separator()
-    link = f"https://t.me/{_esc(bot_username)}?start={_esc(referral_code)}"
+    link = generate_share_link(bot_username, referral_code)
     task_rate = _esc(task_rate)
     deposit_rate = _esc(deposit_rate)
     return (
@@ -174,8 +181,8 @@ def create_campaign_ask_link() -> str:
         "🆕 Create Campaign\n"
         f"{sep}\n"
         "Send the target bot link or username\n"
-        "Examples\\: `https\\://t\\.me/MyBot` or `@MyBot`\n\n"
-        "You can cancel anytime\\."
+        "Examples\\: `https\\://t\.me/MyBot` or `@MyBot`\n\n"
+        "You can cancel anytime\."
     )
 
 
@@ -204,12 +211,13 @@ def create_campaign_confirm(bot_link: str, bot_username: str, amount_per_referra
         f"Title\\: `{_esc(title)}`\n"
         f"Bot\\: `@{_esc(bot_username)}`\n"
         f"Link\\: `{_esc(bot_link)}`\n"
-        f"Reward per referral\\: `{format_trx_escaped(amount_per_referral)} TRX`"
+        f"Reward per referral\\: `{format_trx_escaped(amount_per_referral)} TRX`\n\n"
+        "Tap the Confirm or Cancel button below\\."
     )
 
 
 def create_campaign_cancelled() -> str:
-    return "❌ Campaign creation cancelled\\."
+    return "❌ Campaign creation cancelled\."
 
 
 def create_campaign_created(campaign_id: int) -> str:
@@ -237,7 +245,7 @@ def my_ad_overview(title: str, bot_username: str, bot_link: str, amount_per_refe
 def myads_recharge_ask_amount(current_ad_balance: Decimal) -> str:
     return (
         f"Your ad balance\\: `{format_trx_escaped(current_ad_balance)} TRX`\n"
-        "You can cancel anytime\\.\n"
+        "You can cancel anytime\.\n"
         "🔋 Enter amount to recharge this ad, or choose a preset below\\:"
     )
 
@@ -256,7 +264,7 @@ def myads_recharge_done(campaign_id: int, amount: Decimal) -> str:
 
 
 def myads_recharge_cancelled() -> str:
-    return "❌ Recharge cancelled\\."
+    return "❌ Recharge cancelled\."
 
 
 # ==================== Broadcasts ====================
@@ -267,22 +275,22 @@ def campaign_activated_broadcast() -> str:
         "🚀 New campaign activated\\!\n"
         f"{sep}\n"
         "Participate now and earn TRX\\! 🤑\n"
-        "Browse campaigns from the menu to start\\."
+        "Browse campaigns from the menu to start\."
     )
 
 
 # ==================== Participation Validation Messages ====================
 def campaign_not_active() -> str:
-    return "⚠️ This campaign is currently inactive and cannot be participated in\\."
+    return "⚠️ This campaign is currently inactive and cannot be participated in\."
 
 
 def campaign_owner_cannot_participate() -> str:
-    return "🚫 You cannot participate in your own campaigns\\."
+    return "🚫 You cannot participate in your own campaigns\."
 
 
 def campaign_already_validated_today() -> str:
-    return "⏰ You have already validated this campaign today\\. Please try again tomorrow\\."
+    return "⏰ You have already validated this campaign today\. Please try again tomorrow\."
 
 
 def campaign_participation_blocked() -> str:
-    return "🔒 You cannot participate in this campaign at the moment\\. Please try a different campaign\\."
+    return "🔒 You cannot participate in this campaign at the moment\. Please try a different campaign\."

@@ -18,6 +18,7 @@ MAIN_MENU_BTN = "🏠 Main Menu"
 BACK_BTN = "🔙 Back"
 CANCEL_BTN = "❌ Cancel"
 CANCEL_WITHDRAW_BTN = "❌ Cancel Withdrawal"
+CANCEL_RECHARGE_BTN = "❌ Cancel Recharge"
 SKIP_BTN = "⏭️ Skip"
 CANCEL_CREATE_CAMPAIGN_BTN = "❌ Cancel Creation"
 
@@ -32,10 +33,16 @@ WITHDRAW_500_BTN = "500 TRX"
 WITHDRAW_1000_BTN = "1,000 TRX"
 WITHDRAW_5000_BTN = "5,000 TRX"
 
+# Recharge Buttons
+RECHARGE_10_BTN = "10 TRX"
+RECHARGE_50_BTN = "50 TRX"
+RECHARGE_100_BTN = "100 TRX"
+CONFIRM_RECHARGE_BTN = "✅ Confirm Recharge"
+
 # History Buttons
 ALL_TRANSACTIONS_BTN = "📋 All Transactions"
 DEPOSITS_ONLY_BTN = "📥 Deposits Only"
-INVESTMENTS_ONLY_BTN = "📈 Investments Only"
+ADS_ONLY_BTN = "📈 Ads Only"
 WITHDRAWALS_ONLY_BTN = "📤 Withdrawals Only"
 
 # Settings Buttons
@@ -52,10 +59,10 @@ ADS_LIST_BTN = "📑 List My Ads"
 def main_reply_keyboard():
     """Main menu keyboard with primary bot functions (persistent)."""
     keyboard = [
-        [BROWSE_BTN, BALANCE_BTN],
+        [BROWSE_BTN, MY_ADS_BTN],
+        [BALANCE_BTN, DEPOSIT_BTN],
         [WALLET_BTN, REFERRAL_BTN],
         [SETTINGS_BTN],
-        [MY_ADS_BTN],
     ]
     return ReplyKeyboardMarkup(
         keyboard,
@@ -99,12 +106,49 @@ def cancel_withdraw_keyboard():
         one_time_keyboard=False
     )
 
+def cancel_recharge_keyboard():
+    """Cancel recharge keyboard"""
+    keyboard = [
+        [CANCEL_RECHARGE_BTN]
+    ]
+    return ReplyKeyboardMarkup(
+        keyboard,
+        resize_keyboard=True,
+        one_time_keyboard=False
+    )
+
 def history_reply_keyboard():
     """History submenu keyboard"""
     keyboard = [
         [ALL_TRANSACTIONS_BTN],
         [DEPOSITS_ONLY_BTN, WITHDRAWALS_ONLY_BTN],
+        [ADS_ONLY_BTN],
         [MAIN_MENU_BTN]
+    ]
+    return ReplyKeyboardMarkup(
+        keyboard,
+        resize_keyboard=True,
+        one_time_keyboard=False
+    )
+
+def recharge_reply_keyboard():
+    """Recharge submenu with predefined amounts"""
+    keyboard = [
+        [RECHARGE_10_BTN],
+        [RECHARGE_50_BTN, RECHARGE_100_BTN],
+        [CANCEL_RECHARGE_BTN],
+    ]
+    return ReplyKeyboardMarkup(
+        keyboard,
+        resize_keyboard=True,
+        one_time_keyboard=False
+    )
+
+def confirm_recharge_keyboard():
+    """Show confirm/cancel for recharge"""
+    keyboard = [
+        [CONFIRM_RECHARGE_BTN],
+        [CANCEL_RECHARGE_BTN]
     ]
     return ReplyKeyboardMarkup(
         keyboard,
@@ -181,11 +225,11 @@ def pagination_inline_keyboard(current_page, total_pages, callback_prefix):
 def campaigns_browse_keyboard(bot_link: str, campaign_id: int):
     return InlineKeyboardMarkup([
         [
-            InlineKeyboardButton(text="Message Bot", url=bot_link),
-            InlineKeyboardButton(text="Skip", callback_data="campaign_skip"),
+            InlineKeyboardButton(text="🤖 Message Bot", url=bot_link),
         ],
         [
-            InlineKeyboardButton(text="Report", callback_data=f"campaign_report:{campaign_id}"),
+            InlineKeyboardButton(text="🚨 Report", callback_data=f"campaign_report:{campaign_id}"),
+            InlineKeyboardButton(text="⏭️ Skip", callback_data="campaign_skip"),
         ],
     ])
 

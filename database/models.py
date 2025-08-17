@@ -116,6 +116,12 @@ class TransactionType(enum.Enum):
     referral_commission = 'referral_commission'
 
 
+class TransactionStatus(enum.Enum):
+    pending = 'pending'
+    completed = 'completed'
+    failed = 'failed'
+
+
 class BalanceType(enum.Enum):
     earn_balance = 'earn_balance'
     ad_balance = 'ad_balance'
@@ -124,6 +130,11 @@ class BalanceType(enum.Enum):
 class CommissionType(enum.Enum):
     task_completion = 'task_completion'
     deposit = 'deposit'
+
+
+class CommissionStatus(enum.Enum):
+    pending = 'pending'
+    paid = 'paid'
 
 
 class ReportReason(enum.Enum):
@@ -137,7 +148,6 @@ class ReportStatus(enum.Enum):
     pending = 'pending'
     reviewed = 'reviewed'
     resolved = 'resolved'
-
 
 # Marketplace Models
 class User(BaseModel):
@@ -259,6 +269,7 @@ class ReferralCommission(BaseModel):
     participation_id = Column(Integer, ForeignKey('campaign_participations.id'), nullable=True)
     deposit_id = Column(Integer, ForeignKey('deposits.id'), nullable=True)
     type = Column(Enum(CommissionType), nullable=False)
+    status = Column(Enum(CommissionStatus), nullable=False, default=CommissionStatus.pending)
     amount_trx = Column(Numeric(precision=18, scale=6), nullable=False)
     percentage = Column(Numeric(precision=5, scale=4), nullable=False)
     
@@ -275,6 +286,7 @@ class Transaction(BaseModel):
     
     user_id = Column(Integer, ForeignKey('users.id'), nullable=False)
     type = Column(Enum(TransactionType), nullable=False)
+    status = Column(Enum(TransactionStatus), nullable=False, default=TransactionStatus.pending)
     amount_trx = Column(Numeric(precision=18, scale=6), nullable=False)
     balance_type = Column(Enum(BalanceType), nullable=False)
     reference_id = Column(String, nullable=True)

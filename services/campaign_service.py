@@ -1,74 +1,272 @@
 from __future__ import annotations
 
 from decimal import Decimal
-from typing import Optional, List
-from sqlalchemy.orm import Session
+from typing import Optional, Tuple, List
 
+from database.database import get_db_session
 from database.models import (
+    TransactionStatus,
     User,
     Campaign,
     CampaignParticipation,
     ParticipationStatus,
+    Transaction,
+    TransactionType,
+    BalanceType,
 )
 from utils.helpers import generate_validation_link
+from sqlalchemy import func
+from utils.helpers import get_utc_date
 
 
 class CampaignService:
-    def __init__(self, db: Session):
-        self.db = db
+    """Service de campagnes basé sur des méthodes statiques et transactions internes."""
 
+    # ====== Basic fetch helpers ======
+    @staticmethod
+    def get_user_by_telegram_id(telegram_id: str) -> Optional[User]:
+        with get_db_session() as db:
+            return db.query(User).filter(User.telegram_id == str(telegram_id)).first()
+
+    @staticmethod
+    def get_campaign_by_id(campaign_id: int) -> Optional[Campaign]:
+        with get_db_session() as db:
+            return db.query(Campaign).get(int(campaign_id))
+
+    @staticmethod
+    def list_user_campaigns_by_owner(owner_id: int) -> List[Campaign]:
+        with get_db_session() as db:
+            return (
+                db.query(Campaign)
+                .filter(Campaign.owner_id == int(owner_id))
+                .order_by(Campaign.id.desc())
+                .all()
+            )
+
+    @staticmethod
+    def list_user_campaigns_by_telegram(telegram_id: str) -> List[Campaign]:
+        with get_db_session() as db:
+            user = db.query(User).filter(User.telegram_id == str(telegram_id)).first()
+            if not user:
+                return []
+            return (
+                db.query(Campaign)
+                .filter(Campaign.owner_id == user.id)
+                .order_by(Campaign.id.desc())
+                .all()
+            )
+
+    # ====== Create campaign ======
+    @staticmethod
     def create_campaign(
-        self,
         owner: User,
         title: str,
         bot_link: str,
         bot_username: str,
         amount_per_referral: Decimal,
     ) -> Campaign:
-        campaign = Campaign.create(
-            self.db,
-            owner_id=owner.id,
-            title=title,
-            bot_link=bot_link,
-            bot_username=bot_username,
-            amount_per_referral=amount_per_referral,
-            balance=Decimal("0"),
-            referral_count=0,
-            is_active=True,
-        )
-        return campaign
+        """Créer une campagne (transaction unique)."""
+        with get_db_session() as db:
+            # Recharger l'owner si nécessaire
+            owner_db = db.query(User).get(int(owner.id)) if isinstance(owner, User) else None
+            if not owner_db:
+                # fallback si on a seulement un id valide
+                owner_db = db.query(User).filter(User.id == int(getattr(owner, "id", 0))).first()
+            if not owner_db:
+                raise ValueError("Owner not found")
 
-    def pause_campaign(self, campaign: Campaign) -> Campaign:
-        campaign.is_active = False
-        return campaign.save(self.db)
-
-    def resume_campaign(self, campaign: Campaign) -> Campaign:
-        campaign.is_active = True
-        return campaign.save(self.db)
-
-    def can_user_participate(self, campaign: Campaign, user: User) -> bool:
-        existing = (
-            self.db.query(CampaignParticipation)
-            .filter(
-                CampaignParticipation.campaign_id == campaign.id,
-                CampaignParticipation.user_id == user.id,
+            camp = Campaign(
+                owner_id=owner_db.id,
+                title=title,
+                bot_link=bot_link,
+                bot_username=bot_username,
+                amount_per_referral=amount_per_referral,
+                balance=Decimal("0"),
+                referral_count=0,
+                is_active=True,
             )
-            .first()
-        )
-        return existing is None
+            db.add(camp)
+            db.commit()
+            db.refresh(camp)
+            return camp
 
-    def start_participation(self, campaign: Campaign, user: User) -> CampaignParticipation:
-        participation = CampaignParticipation.create(
-            self.db,
-            campaign_id=campaign.id,
-            user_id=user.id,
-            status=ParticipationStatus.pending,
-        )
-        return participation
+    # ====== Pause/Resume/Toggle ======
+    @staticmethod
+    def pause_campaign_by_id(campaign_id: int) -> Optional[Campaign]:
+        with get_db_session() as db:
+            camp = db.query(Campaign).get(int(campaign_id))
+            if not camp:
+                return None
+            camp.is_active = False
+            db.commit()
+            db.refresh(camp)
+            return camp
 
-    def set_forward_and_generate_link(self, participation: CampaignParticipation, forward_message_id: str) -> CampaignParticipation:
-        participation.forward_message_id = forward_message_id
-        participation.validation_link = generate_validation_link()
-        return participation.save(self.db)
+    @staticmethod
+    def resume_campaign_by_id(campaign_id: int) -> Optional[Campaign]:
+        with get_db_session() as db:
+            camp = db.query(Campaign).get(int(campaign_id))
+            if not camp:
+                return None
+            camp.is_active = True
+            db.commit()
+            db.refresh(camp)
+            return camp
 
+    @staticmethod
+    def toggle_campaign(owner_id: int, campaign_id: int) -> Tuple[Optional[Campaign], Optional[str]]:
+        """Bascule l'état actif d'une campagne pour un owner donné.
+        Retourne (campaign, error_reason) où error_reason peut être 'not_found', 'not_owner', 'insufficient_balance'."""
+        with get_db_session() as db:
+            camp = db.query(Campaign).get(int(campaign_id))
+            if not camp:
+                return None, "not_found"
+            if int(camp.owner_id) != int(owner_id):
+                return None, "not_owner"
+            new_state = not bool(camp.is_active)
+            if new_state and camp.balance < camp.amount_per_referral:
+                return camp, "insufficient_balance"
+            camp.is_active = new_state
+            db.commit()
+            db.refresh(camp)
+            return camp, None
 
+    # ====== Auto deactivation rule ======
+    @staticmethod
+    def enforce_auto_pause_if_insufficient_balance(campaign_id: int) -> Optional[Campaign]:
+        with get_db_session() as db:
+            camp = db.query(Campaign).get(int(campaign_id))
+            if not camp:
+                return None
+            if camp.is_active and camp.balance < camp.amount_per_referral:
+                camp.is_active = False
+                db.commit()
+                db.refresh(camp)
+            return camp
+
+    # ====== Participation helpers (kept for completeness, but not used in handlers shown) ======
+    @staticmethod
+    def can_user_participate(campaign: Campaign, user: User) -> Tuple[bool, Optional[str]]:
+        if not campaign.is_active:
+            return False, "inactive"
+        if campaign.owner_id == user.id:
+            return False, "owner"
+        with get_db_session() as db:
+            today = get_utc_date()
+            validated_today = (
+                db.query(CampaignParticipation)
+                .filter(
+                    CampaignParticipation.campaign_id == campaign.id,
+                    CampaignParticipation.user_id == user.id,
+                    CampaignParticipation.status == ParticipationStatus.validated,
+                    func.date(CampaignParticipation.validated_at) == today,
+                )
+                .first()
+            )
+            if validated_today:
+                return False, "validated_today"
+        return True, None
+
+    @staticmethod
+    def start_participation(campaign: Campaign, user: User) -> CampaignParticipation:
+        with get_db_session() as db:
+            part = CampaignParticipation(
+                campaign_id=campaign.id,
+                user_id=user.id,
+                status=ParticipationStatus.pending,
+            )
+            db.add(part)
+            db.commit()
+            db.refresh(part)
+            return part
+
+    @staticmethod
+    def set_forward_and_generate_link(participation_id: int, forward_message_id: str) -> Optional[CampaignParticipation]:
+        with get_db_session() as db:
+            part = db.query(CampaignParticipation).get(int(participation_id))
+            if not part:
+                return None
+            part.forward_message_id = forward_message_id
+            part.validation_link = generate_validation_link()
+            db.commit()
+            db.refresh(part)
+            return part
+
+    # ====== Recharge logic ======
+    @staticmethod
+    def recharge_campaign(owner_id: int, campaign_id: int, amount: Decimal) -> Tuple[Optional[Campaign], Optional[str], bool]:
+        """Recharge la campagne d'un owner.
+        Retourne (campaign, error_reason, was_activated). error_reason ∈ {None, 'not_found', 'not_owner', 'insufficient_balance'}"""
+        with get_db_session() as db:
+            user = db.query(User).get(int(owner_id))
+            if not user:
+                return None, "not_found", False
+            camp = db.query(Campaign).get(int(campaign_id))
+            if not camp:
+                return None, "not_found", False
+            if camp.owner_id != user.id:
+                return None, "not_owner", False
+            if user.ad_balance < amount:
+                return None, "insufficient_balance", False
+
+            prev_active = bool(camp.is_active)
+            # Money moves
+            user.ad_balance = (user.ad_balance or Decimal("0")) - amount
+            camp.balance = (camp.balance or Decimal("0")) + amount
+
+            # Sponsor commission (10% par défaut via config si dispo)
+            try:
+                from decimal import Decimal as D
+                import config
+                if user.sponsor_id:
+                    sponsor = db.query(User).get(int(user.sponsor_id))
+                    if sponsor:
+                        percent = D(str(getattr(config, "SPONSOR_RECHARGE_COMMISSION_PERCENT", 10)))
+                        commission = (amount * percent) / D(100)
+                        sponsor.earn_balance = (sponsor.earn_balance or D(0)) + commission
+                        db.add(
+                            Transaction(
+                                user_id=sponsor.id,
+                                type=TransactionType.referral_commission,
+                                status=TransactionStatus.completed,
+                                amount_trx=commission,
+                                balance_type=BalanceType.earn_balance,
+                                reference_id=str(camp.id),
+                                description="Sponsor commission on campaign recharge",
+                            )
+                        )
+            except Exception:
+                # Fail-safe: ne pas casser la recharge si commission échoue
+                pass
+
+            # Activation auto si seuil atteint
+            was_activated = False
+            if camp.balance >= camp.amount_per_referral and not prev_active:
+                camp.is_active = True
+                was_activated = True
+
+            # Log de la recharge comme dépense campagne (historique utilisateur)
+            db.add(
+                Transaction(
+                    user_id=user.id,
+                    type=TransactionType.campaign_spend,
+                    status=TransactionStatus.completed,
+                    amount_trx=amount,
+                    balance_type=BalanceType.ad_balance,
+                    reference_id=str(camp.id),
+                    description="Campaign recharge",
+                )
+            )
+
+            db.commit()
+            db.refresh(camp)
+            return camp, None, was_activated
+
+    # ====== Broadcast helpers ======
+    @staticmethod
+    def get_all_users(exclude_telegram_id: Optional[str] = None) -> List[User]:
+        with get_db_session() as db:
+            q = db.query(User)
+            if exclude_telegram_id is not None:
+                q = q.filter(User.telegram_id != str(exclude_telegram_id))
+            return q.all()

@@ -20,7 +20,6 @@ from bot.handlers.campaigns import (
     CREATE_CAMPAIGN_STATE_KEY,
     on_my_ads_actions,
     on_myads_recharge_callback,
-    on_myads_recharge_text,
 )
 from bot.handlers.participation import browse_bots, forward_validator, on_campaign_skip, on_campaign_report, on_report_reason
 from bot.handlers.wallet import deposit as wallet_deposit, on_copy_address, on_withdraw_callback, withdraw as wallet_withdraw
@@ -89,7 +88,7 @@ def running_application() -> Application:
 
     # Pagination for history
     app.add_handler(CommandHandler("history", history))
-    app.add_handler(CallbackQueryHandler(history_pagination, pattern=r"^history_(?:all|deposits|investments|withdrawals)_page_\d+$"))
+    app.add_handler(CallbackQueryHandler(history_pagination, pattern=r"^history_(?:all|deposits|ads|withdrawals)_page_\d+$"))
     
     # Referral handlers
     app.add_handler(CommandHandler("referral", referral_handler))

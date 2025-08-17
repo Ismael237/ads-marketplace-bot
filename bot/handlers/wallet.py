@@ -2,28 +2,23 @@ from __future__ import annotations
 
 from decimal import Decimal
 from telegram import Update
-from telegram.ext import ContextTypes, CommandHandler, MessageHandler, CallbackQueryHandler, filters
+from telegram.ext import ContextTypes
 
-from database.database import get_db_session
-from database.models import User, Withdrawal, WithdrawalStatus, Transaction, TransactionType, BalanceType
 from services.wallet_service import WalletService
 from bot.utils import reply_ephemeral
-from bot.keyboards import main_reply_keyboard, wallet_menu_keyboard, withdraw_reply_keyboard, cancel_withdraw_keyboard, withdraw_confirm_inline_keyboard, CANCEL_WITHDRAW_BTN
+from bot.keyboards import main_reply_keyboard, withdraw_reply_keyboard, cancel_withdraw_keyboard, withdraw_confirm_inline_keyboard, CANCEL_WITHDRAW_BTN
 from bot import messages
 from utils.validators import is_valid_tron_address
 import config
 
 
 async def deposit(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    with get_db_session() as db:
-        user = db.query(User).filter(User.telegram_id == str(update.effective_user.id)).first()
-        if not user:
-            await reply_ephemeral(update, "Please /start first")
-            return
-        ws = WalletService(db)
-        address = ws.get_user_wallet_address(user)
-        text = messages.deposit_instructions(address)
-        await reply_ephemeral(update, text, reply_markup=wallet_menu_keyboard(address))
+    address = WalletService.get_user_wallet_address_by_telegram(str(update.effective_user.id))
+    if not address:
+        await reply_ephemeral(update, "Please /start first")
+        return
+    text = messages.deposit_instructions(address)
+    await reply_ephemeral(update, text)
 
 
 WITHDRAW_STATE_KEY = "withdraw_state"
@@ -36,7 +31,15 @@ async def withdraw(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if len(args) < 2:
         # Start guided flow
         context.user_data[WITHDRAW_STATE_KEY] = "ask_amount"
-        await reply_ephemeral(update, messages.withdraw_ask_amount(config.MIN_WITHDRAWAL_TRX), reply_markup=withdraw_reply_keyboard())
+        user = WalletService.get_user_by_telegram_id(str(update.effective_user.id))
+        if not user:
+            await reply_ephemeral(update, "Please /start first")
+            return
+        await reply_ephemeral(
+            update,
+            messages.withdraw_ask_amount(config.MIN_WITHDRAWAL_TRX, user.earn_balance),
+            reply_markup=withdraw_reply_keyboard(),
+        )
         return
     amount_str, to_address = args[0], args[1]
     try:
@@ -47,33 +50,18 @@ async def withdraw(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if amount < Decimal(str(config.MIN_WITHDRAWAL_TRX)):
         await reply_ephemeral(update, f"Minimum withdrawal is {config.MIN_WITHDRAWAL_TRX} TRX")
         return
-    with get_db_session() as db:
-        user = db.query(User).filter(User.telegram_id == str(update.effective_user.id)).first()
-        if not user:
-            await reply_ephemeral(update, "Please /start first")
-            return
-        if user.earn_balance < amount:
-            await reply_ephemeral(update, "Insufficient earn_balance")
-            return
-        user.earn_balance -= amount
-        db.commit()
-        w = Withdrawal.create(
-            db,
-            user_id=user.id,
-            amount_trx=amount,
-            to_address=to_address,
-            status=WithdrawalStatus.pending,
-        )
-        Transaction.create(
-            db,
-            user_id=user.id,
-            type=TransactionType.withdrawal,
-            amount_trx=amount,
-            balance_type=BalanceType.earn_balance,
-            reference_id=str(w.id),
-            description="Withdrawal requested",
-        )
-        await reply_ephemeral(update, f"Withdrawal request created id={w.id}")
+    user = WalletService.get_user_by_telegram_id(str(update.effective_user.id))
+    if not user:
+        await reply_ephemeral(update, "Please /start first")
+        return
+    w, err = WalletService.create_withdrawal(user_id=user.id, amount=amount, to_address=to_address)
+    if err == "not_found":
+        await reply_ephemeral(update, "Please /start first")
+        return
+    if err == "insufficient_balance":
+        await reply_ephemeral(update, "Insufficient earn_balance")
+        return
+    await reply_ephemeral(update, f"Withdrawal request created id={w.id}")
 
 
 def _parse_amount_text(text: str) -> Decimal | None:
@@ -96,7 +84,15 @@ async def on_withdraw_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if state == "ask_amount":
         amount = _parse_amount_text(text_in)
         if not amount or amount < Decimal(str(config.MIN_WITHDRAWAL_TRX)):
-            await reply_ephemeral(update, messages.withdraw_ask_amount(config.MIN_WITHDRAWAL_TRX), reply_markup=withdraw_reply_keyboard())
+            user = WalletService.get_user_by_telegram_id(str(update.effective_user.id))
+            if not user:
+                await reply_ephemeral(update, "Please /start first")
+                return
+            await reply_ephemeral(
+                update,
+                messages.withdraw_ask_amount(config.MIN_WITHDRAWAL_TRX, user.earn_balance),
+                reply_markup=withdraw_reply_keyboard(),
+            )
             return
         context.user_data[WITHDRAW_AMOUNT_KEY] = amount
         context.user_data[WITHDRAW_STATE_KEY] = "ask_address"
@@ -133,34 +129,19 @@ async def on_withdraw_callback(update: Update, context: ContextTypes.DEFAULT_TYP
         to_address = context.user_data.get(WITHDRAW_ADDRESS_KEY)
         if not amount or not to_address:
             return
-        with get_db_session() as db:
-            user = db.query(User).filter(User.telegram_id == str(update.effective_user.id)).first()
-            if not user:
-                return
-            if user.earn_balance < amount:
-                await query.message.reply_markdown_v2("Insufficient earn\\_balance")
-                return
-            user.earn_balance -= amount
-            db.commit()
-            w = Withdrawal.create(
-                db,
-                user_id=user.id,
-                amount_trx=amount,
-                to_address=to_address,
-                status=WithdrawalStatus.pending,
-            )
-            Transaction.create(
-                db,
-                user_id=user.id,
-                type=TransactionType.withdrawal,
-                amount_trx=amount,
-                balance_type=BalanceType.earn_balance,
-                reference_id=str(w.id),
-                description="Withdrawal requested",
-            )
+        user = WalletService.get_user_by_telegram_id(str(update.effective_user.id))
+        if not user:
+            return
+        w, err = WalletService.create_withdrawal(user_id=user.id, amount=amount, to_address=to_address)
+        if err == "insufficient_balance":
+            await query.message.reply_markdown_v2("Insufficient earn_balance")
+            return
+        if err == "not_found" or not w:
+            return
+        w_id = w.id
         context.user_data.pop(WITHDRAW_STATE_KEY, None)
         await query.edit_message_reply_markup(reply_markup=None)
-        await query.message.reply_markdown_v2(f"Withdrawal request created id\\={w.id}")
+        await query.message.reply_markdown_v2(f"Withdrawal request created id={w_id}", reply_markup=main_reply_keyboard())
         return
 
 
@@ -172,4 +153,3 @@ async def on_copy_address(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # data format: copy:<address>
     _, address = query.data.split(":", 1)
     await query.message.reply_markdown_v2(messages.deposit_copied(address))
-

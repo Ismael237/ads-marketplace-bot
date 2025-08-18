@@ -27,7 +27,7 @@ def deposit_instructions(address: str) -> str:
     return (
         "💰 Deposit TRX\n"
         f"{sep}\n"
-        "Click to copy your deposit address\\:\n\n"
+        "Click to copy your deposit address:\n\n"
         f"`{_esc(address)}`\n\n"
         "⏳ Your balance is credited after automatic confirmations\\."
     )
@@ -35,7 +35,7 @@ def deposit_instructions(address: str) -> str:
 
 def deposit_copied(address: str) -> str:
     return (
-        "📋 Copy the address below\\:\n"
+        "📋 Copy the address below:\n"
         f"`{_esc(address)}`"
     )
 
@@ -45,16 +45,16 @@ def withdraw_ask_amount(min_withdrawal: Decimal, current_earn_balance: Decimal) 
     return (
         "🏧 Withdraw TRX\n"
         f"{sep}\n"
-        f"Minimum\\: `{format_trx_escaped(min_withdrawal)} TRX`\n"
-        f"Your balance\\: `{format_trx_escaped(current_earn_balance)} TRX`\n"
-        "Select an amount or enter a custom amount \\(e\\.g\\. 12\\.5\\)\\:"
+        f"Minimum: `{format_trx_escaped(min_withdrawal)} TRX`\n"
+        f"Your balance: `{format_trx_escaped(current_earn_balance)} TRX`\n"
+        "Select an amount or enter a custom amount \\(e\\.g\\. 12\\.5\\):"
     )
 
 
 def withdraw_ask_address(amount: Decimal) -> str:
     return (
-        "📮 Enter the destination TRON address \\(starts with T\\)\\:\n"
-        f"Amount\\: `{format_trx_escaped(amount)} TRX`"
+        "📮 Enter the destination TRON address \\(starts with T\\):\n"
+        f"Amount: `{format_trx_escaped(amount)} TRX`"
     )
 
 
@@ -62,12 +62,12 @@ def withdraw_confirm(amount: Decimal, to_address: str, fee_rate: Optional[Decima
     sep = get_separator()
     fee_txt = ""
     if fee_rate is not None and fee_rate > 0:
-        fee_txt = f"\nFee\\: `{format_trx_escaped(Decimal(amount) * Decimal(fee_rate))} TRX`"
+        fee_txt = f"\nFee: `{format_trx_escaped(Decimal(amount) * Decimal(fee_rate))} TRX`"
     return (
-        "✅ Please confirm your withdrawal\\:\n"
+        "✅ Please confirm your withdrawal:\n"
         f"{sep}\n"
-        f"Amount\\: `{format_trx_escaped(amount)} TRX`\n"
-        f"To\\: `{_esc(to_address)}`\n"
+        f"Amount: `{format_trx_escaped(amount)} TRX`\n"
+        f"To: `{_esc(to_address)}`\n"
         f"{fee_txt}"
     )
 
@@ -81,8 +81,8 @@ def browse_campaign(camp_title: str, amount_per_referral: Decimal) -> str:
     return (
         "📣 Campaign\n"
         f"{sep}\n"
-        f"Title\\: `{_esc(camp_title)}`\n"
-        f"Reward per task\\: `{format_trx_escaped(amount_per_referral)} TRX`\n\n"
+        f"Title: `{_esc(camp_title)}`\n"
+        f"Reward per task: `{format_trx_escaped(amount_per_referral)} TRX`\n\n"
         "1️⃣ Tap Message Bot to start\\.\n"
         "2️⃣ Forward a recent message back here to participate\\.\n"
     )
@@ -115,19 +115,19 @@ def referral_overview(bot_username: str, referral_code: str, task_rate: float, d
     return (
         "👥 Referral Program\n"
         f"{sep}\n"
-        f"Your referral link\\(click to copy\\)\\:\n\n"
+        f"Your referral link\\(click to copy\\):\n\n"
         f"`{_esc(link)}`\n\n"
-        f"Stats\\:\n"
-        f"• Referrals\\: `{referral_count}`\n"
-        f"• Total earned\\: `{format_trx_escaped(total_earned)} TRX`\n\n"
-        f"Commissions\\:\n"
-        f"• Tasks\\: `{task_rate}%`\n"
-        f"• Ads spending\\: `{deposit_rate}%`"
+        f"Stats:\n"
+        f"• Referrals: `{referral_count}`\n"
+        f"• Total earned: `{format_trx_escaped(total_earned)} TRX`\n\n"
+        f"Commissions:\n"
+        f"• Tasks: `{task_rate}%`\n"
+        f"• Ads spending: `{deposit_rate}%`"
     )
 
 
 def report_choose_reason() -> str:
-    return "🚩 Choose a reason to report this campaign\\:"
+    return "🚩 Choose a reason to report this campaign:"
 
 
 def report_saved() -> str:
@@ -139,8 +139,8 @@ def balance_overview(earn_balance: Decimal, ad_balance: Decimal) -> str:
     return (
         "💳 Balance\n"
         f"{sep}\n"
-        f"Earnings\\: `{format_trx_escaped(earn_balance)} TRX`\n"
-        f"Advertising\\: `{format_trx_escaped(ad_balance)} TRX`"
+        f"Earnings: `{format_trx_escaped(earn_balance)} TRX`\n"
+        f"Advertising: `{format_trx_escaped(ad_balance)} TRX`"
     )
 
 
@@ -169,8 +169,8 @@ def settings_info(admin_username: Optional[str]) -> str:
     return (
         "⚙️ Settings\n"
         f"{sep}\n"
-        f"Support\\: {admin}\n"
-        "About\\: Campaign Marketplace Bot on TRON"
+        f"Support: {admin}\n"
+        "About: Campaign Marketplace Bot on TRON"
     )
 
 
@@ -181,7 +181,7 @@ def create_campaign_ask_link() -> str:
         "🆕 Create Campaign\n"
         f"{sep}\n"
         "Send the target bot link or username\n"
-        "Examples\\: `https\\://t\.me/MyBot` or `@MyBot`\n\n"
+        "Examples: `https://t\.me/MyBot` or `@MyBot`\n\n"
         "You can cancel anytime\."
     )
 
@@ -189,7 +189,7 @@ def create_campaign_ask_link() -> str:
 def create_campaign_ask_forward(bot_link: str) -> str:
     return (
         "📨 Please forward a recent message from the target bot here to verify it works\n"
-        "Bot link\\:\n"
+        "Bot link:\n"
         f"{_esc(bot_link)}"
     )
 
@@ -199,7 +199,7 @@ def create_campaign_ask_title(default_title: str) -> str:
     return (
         "📝 Enter a campaign title, or tap Skip to use the default title\n"
         f"{sep}\n"
-        f"Default\\: `{_esc(default_title)}`"
+        f"Default: `{_esc(default_title)}`"
     )
 
 
@@ -208,10 +208,10 @@ def create_campaign_confirm(bot_link: str, bot_username: str, amount_per_referra
     return (
         "✅ Confirm Campaign\n"
         f"{sep}\n"
-        f"Title\\: `{_esc(title)}`\n"
-        f"Bot\\: `@{_esc(bot_username)}`\n"
-        f"Link\\: `{_esc(bot_link)}`\n"
-        f"Reward per referral\\: `{format_trx_escaped(amount_per_referral)} TRX`\n\n"
+        f"Title: `{_esc(title)}`\n"
+        f"Bot: `@{_esc(bot_username)}`\n"
+        f"Link: `{_esc(bot_link)}`\n"
+        f"Reward per referral: `{format_trx_escaped(amount_per_referral)} TRX`\n\n"
         "Tap the Confirm or Cancel button below\\."
     )
 
@@ -232,28 +232,28 @@ def my_ad_overview(title: str, bot_username: str, bot_link: str, amount_per_refe
     return (
         f"📢 My Ad \\({idx}/{total}\\)\n"
         f"{sep}\n"
-        f"Title\\: `{_esc(title)}`\n"
-        f"Bot\\: `@{_esc(bot_username)}`\n"
-        f"Link\\: `{_esc(bot_link)}`\n"
-        f"Reward per referral\\: `{format_trx_escaped(amount_per_referral)} TRX`\n"
-        f"Balance\\: `{format_trx_escaped(balance)} TRX`\n"
-        f"Referrals\\: `{referral_count}`\n"
-        f"Status\\: {status_emoji} {status_text}"
+        f"Title: `{_esc(title)}`\n"
+        f"Bot: `@{_esc(bot_username)}`\n"
+        f"Link: `{_esc(bot_link)}`\n"
+        f"Reward per referral: `{format_trx_escaped(amount_per_referral)} TRX`\n"
+        f"Balance: `{format_trx_escaped(balance)} TRX`\n"
+        f"Referrals: `{referral_count}`\n"
+        f"Status: {status_emoji} {status_text}"
     )
 
 
 def myads_recharge_ask_amount(current_ad_balance: Decimal) -> str:
     return (
-        f"Your ad balance\\: `{format_trx_escaped(current_ad_balance)} TRX`\n"
+        f"Your ad balance: `{format_trx_escaped(current_ad_balance)} TRX`\n"
         "You can cancel anytime\.\n"
-        "🔋 Enter amount to recharge this ad, or choose a preset below\\:"
+        "🔋 Enter amount to recharge this ad, or choose a preset below:"
     )
 
 
 def myads_recharge_confirm(amount: Decimal) -> str:
     return (
         "✅ Confirm Recharge\n"
-        f"Amount\\: `{format_trx_escaped(amount)} TRX`"
+        f"Amount: `{format_trx_escaped(amount)} TRX`"
     )
 
 
@@ -294,3 +294,57 @@ def campaign_already_validated_today() -> str:
 
 def campaign_participation_blocked() -> str:
     return "🔒 You cannot participate in this campaign at the moment\. Please try a different campaign\."
+
+
+# ==================== Internal Transfer (earn -> ad) ====================
+def transfer_ask_amount(current_earn_balance: Decimal, fee_rate: float) -> str:
+    sep = get_separator()
+    return (
+        "💫 Transfer to Advertising Balance\n"
+        f"{sep}\n"
+        f"Available: `{format_trx_escaped(current_earn_balance)} TRX`\n"
+        f"Transfer Fee: `{_esc(fee_rate * 100)}%`\n"
+        "Minimum Transfer: `1 TRX`\n"
+        f"{sep}\n"
+        "🔢 Enter amount or use quick options below\\.\n"
+        "ℹ️ *Note:* Whole numbers only"
+    )
+
+
+def transfer_confirm(amount: Decimal, fee_rate: float) -> str:
+    from decimal import Decimal as D
+    sep = get_separator()
+    amt = D(str(amount))
+    fee = (amt * D(str(fee_rate)))
+    net = amt - fee
+    return (
+        "💱 *Transfer Confirmation*\n"
+        f"{sep}\n"
+        f"💰 Amount: `{format_trx_escaped(amt)} TRX`\n" 
+        f"📝 Fee: `{format_trx_escaped(fee)} TRX`\n"
+        f"✨ Net to ads: `{format_trx_escaped(net)} TRX`\n\n"
+        "⚠️ _This operation cannot be undone_"
+    )
+
+
+def transfer_done(amount: Decimal, new_earn_balance: Decimal, new_ad_balance: Decimal) -> str:
+    sep = get_separator()
+    return (
+        "✨ Transfer Complete\\!\n"
+        f"{sep}\n"
+        f"✅ Moved: `{format_trx_escaped(amount)} TRX`\n"
+        f"💰 Earnings: `{format_trx_escaped(new_earn_balance)} TRX`\n" 
+        f"📢 Ads: `{format_trx_escaped(new_ad_balance)} TRX`"
+    )
+
+
+def transfer_cancelled() -> str:
+    return "❌ Transfer cancelled\\."
+
+
+def transfer_invalid_amount() -> str:
+    return "⚠️ Invalid amount\\. Please enter an integer amount of at least 1 TRX\\."
+
+
+def transfer_insufficient_balance() -> str:
+    return "⛔ Insufficient earnings balance for this transfer\\."

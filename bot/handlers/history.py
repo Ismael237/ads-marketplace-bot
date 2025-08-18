@@ -14,15 +14,16 @@ from utils.helpers import escape_markdown_v2, get_separator, format_trx_escaped
 from services.wallet_service import WalletService
 from services.referral_service import ReferralService
 
-HistoryFilter = Literal["all", "deposits", "ads", "withdrawals"]
+HistoryFilter = Literal["all", "deposits", "ads", "withdrawals", "transfers"]
 
 
 def _filter_to_title(filter_key: HistoryFilter) -> str:
     return {
         "all": "All Transactions",
         "deposits": "Deposits",
-        "ads": "ads",
+        "ads": "Ads",
         "withdrawals": "Withdrawals",
+        "transfers": "Transfers",
     }[filter_key]
 
 
@@ -106,6 +107,7 @@ async def _send_transactions_page(update, context, transactions, page: int, tota
         TransactionType.campaign_spend.value: "💼",
         TransactionType.task_reward.value: "💸",
         TransactionType.referral_commission.value: "🎁",
+        getattr(TransactionType, 'internal_transfer').value if hasattr(TransactionType, 'internal_transfer') else 'internal_transfer': "🔁",
     }
 
     if not transactions:

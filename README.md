@@ -147,8 +147,24 @@ bot-marketplace/
 
 ## Version
 
-- Current version: 1.0.1
-- Release type: Patch
+- Current version: 1.0.2
+- Release type: Minor
+
+## Changelog
+
+### 1.0.2 — Minor
+
+• Feature: Earn-to-Ads Internal Transfer (integer-only, min 1 TRX, presets, MAX)
+• UX: Confirmation shows amount, 0.5% fee, net, and irreversibility note
+• Wallet Service: apply fee and credit net to ads, return updated balances
+• History: new filter "Transfers Only" with 🔁 emoji
+• Config: add TRANSFER_FEE_RATE, MIN_TRANSFER_TRX, TRANSFER_INTEGER_ONLY
+• Migration: extend TransactionType enum with `internal_transfer`
+
+Upgrade steps:
+1. Ensure new env vars exist (see `.env.template`).
+2. Apply DB migration: `alembic upgrade head`.
+3. Restart the bot.
 
 ## Support
 

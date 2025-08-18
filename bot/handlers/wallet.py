@@ -8,10 +8,16 @@ from services.wallet_service import WalletService
 from bot.utils import reply_ephemeral
 from bot.keyboards import (
     main_reply_keyboard,
+    wallet_reply_keyboard,
     withdraw_reply_keyboard,
     cancel_withdraw_keyboard,
     withdraw_confirm_inline_keyboard,
     CANCEL_WITHDRAW_BTN,
+    transfer_reply_keyboard,
+    confirm_transfer_keyboard,
+    CANCEL_TRANSFER_BTN,
+    CONFIRM_TRANSFER_BTN,
+    TRANSFER_MAX_BTN,
 )
 from bot import messages
 from utils.validators import is_valid_tron_address
@@ -159,3 +165,101 @@ async def on_copy_address(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # data format: copy:<address>
     _, address = query.data.split(":", 1)
     await query.message.reply_markdown_v2(messages.deposit_copied(address))
+
+
+# ===== Internal Transfer (earn_balance -> ad_balance) =====
+TRANSFER_STATE_KEY = "transfer_state"
+TRANSFER_AMOUNT_KEY = "transfer_amount"
+
+
+def _parse_positive_int_amount_text(text: str) -> int | None:
+    try:
+        t = (text or "").upper().replace("TRX", "").replace(",", "").strip()
+        if not t:
+            return None
+        # integer only
+        if not t.isdigit():
+            return None
+        val = int(t)
+        if val < int(config.MIN_TRANSFER_TRX):
+            return None
+        return val
+    except Exception:
+        return None
+
+
+async def start_transfer(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user = WalletService.get_user_by_telegram_id(str(update.effective_user.id))
+    if not user:
+        await reply_ephemeral(update, "Please /start first")
+        return
+    context.user_data[TRANSFER_STATE_KEY] = "ask_amount"
+    await reply_ephemeral(
+        update,
+        messages.transfer_ask_amount(user.earn_balance, float(config.TRANSFER_FEE_RATE)),
+        reply_markup=transfer_reply_keyboard(),
+    )
+
+
+async def on_transfer_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    state = context.user_data.get(TRANSFER_STATE_KEY)
+    text_in = (update.effective_message.text or "").strip()
+    if text_in == CANCEL_TRANSFER_BTN:
+        context.user_data.pop(TRANSFER_STATE_KEY, None)
+        context.user_data.pop(TRANSFER_AMOUNT_KEY, None)
+        await reply_ephemeral(update, messages.transfer_cancelled(), reply_markup=wallet_reply_keyboard())
+        return
+    if state == "ask_amount":
+        user = WalletService.get_user_by_telegram_id(str(update.effective_user.id))
+        if not user:
+            await reply_ephemeral(update, "Please /start first")
+            return
+        if text_in == TRANSFER_MAX_BTN:
+            # Use floor of earn_balance to integer
+            try:
+                max_int = int(Decimal(user.earn_balance))
+            except Exception:
+                max_int = 0
+            if max_int < int(config.MIN_TRANSFER_TRX):
+                await reply_ephemeral(update, messages.transfer_invalid_amount(), reply_markup=transfer_reply_keyboard())
+                return
+            amount_int = max_int
+        else:
+            amount_int = _parse_positive_int_amount_text(text_in)
+            if amount_int is None:
+                await reply_ephemeral(update, messages.transfer_invalid_amount(), reply_markup=transfer_reply_keyboard())
+                return
+        # Validate available balance (gross)
+        if Decimal(str(amount_int)) > Decimal(user.earn_balance):
+            await reply_ephemeral(update, messages.transfer_insufficient_balance(), reply_markup=transfer_reply_keyboard())
+            return
+        context.user_data[TRANSFER_AMOUNT_KEY] = int(amount_int)
+        context.user_data[TRANSFER_STATE_KEY] = "confirm"
+        await reply_ephemeral(
+            update,
+            messages.transfer_confirm(Decimal(amount_int), float(config.TRANSFER_FEE_RATE)),
+            reply_markup=confirm_transfer_keyboard(),
+        )
+        return
+    elif state == "confirm":
+        if text_in == CONFIRM_TRANSFER_BTN:
+            user = WalletService.get_user_by_telegram_id(str(update.effective_user.id))
+            if not user:
+                await reply_ephemeral(update, "Please /start first")
+                return
+            amount_int = context.user_data.get(TRANSFER_AMOUNT_KEY)
+            if not amount_int:
+                return
+            gross = Decimal(int(amount_int))
+            fee_rate = Decimal(str(config.TRANSFER_FEE_RATE))
+            new_user, err = WalletService.internal_transfer_earn_to_ad(user.id, gross, fee_rate)
+            if err == "insufficient_balance":
+                await reply_ephemeral(update, messages.transfer_insufficient_balance())
+                return
+            if err == "not_found" or not new_user:
+                await reply_ephemeral(update, "Please /start first")
+                return
+            context.user_data.pop(TRANSFER_STATE_KEY, None)
+            context.user_data.pop(TRANSFER_AMOUNT_KEY, None)
+            await reply_ephemeral(update, messages.transfer_done(gross, new_user.earn_balance, new_user.ad_balance), reply_markup=wallet_reply_keyboard())
+            return

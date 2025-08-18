@@ -21,6 +21,10 @@ CANCEL_WITHDRAW_BTN = "❌ Cancel Withdrawal"
 CANCEL_RECHARGE_BTN = "❌ Cancel Recharge"
 SKIP_BTN = "⏭️ Skip"
 CANCEL_CREATE_CAMPAIGN_BTN = "❌ Cancel Creation"
+CONFIRM_RECHARGE_BTN = "✅ Confirm Recharge"
+CONFIRM_CREATE_CAMPAIGN_BTN = "✅ Confirm Campaign"
+CONFIRM_TRANSFER_BTN = "✅ Confirm Transfer"
+CANCEL_TRANSFER_BTN = "❌ Cancel Transfer"
 
 # Balance Submenu Buttons
 VIEW_BALANCE_BTN = "💰 View Balance"
@@ -37,14 +41,21 @@ WITHDRAW_5000_BTN = "5,000 TRX"
 RECHARGE_10_BTN = "10 TRX"
 RECHARGE_50_BTN = "50 TRX"
 RECHARGE_100_BTN = "100 TRX"
-CONFIRM_RECHARGE_BTN = "✅ Confirm Recharge"
-CONFIRM_CREATE_CAMPAIGN_BTN = "✅ Confirm Campaign"
 
 # History Buttons
 ALL_TRANSACTIONS_BTN = "📋 All Transactions"
 DEPOSITS_ONLY_BTN = "📥 Deposits Only"
 ADS_ONLY_BTN = "📈 Ads Only"
 WITHDRAWALS_ONLY_BTN = "📤 Withdrawals Only"
+TRANSFERS_ONLY_BTN = "🔁 Transfers Only"
+
+# Transfer Buttons
+TRANSFER_BTN = "🔁 Transfer to Ads"
+TRANSFER_1_BTN = "1 TRX"
+TRANSFER_5_BTN = "5 TRX"
+TRANSFER_10_BTN = "10 TRX"
+TRANSFER_25_BTN = "25 TRX"
+TRANSFER_MAX_BTN = "MAX"
 
 # Settings Buttons
 HELP_BTN = "❓ Help"
@@ -122,7 +133,7 @@ def history_reply_keyboard():
     keyboard = [
         [ALL_TRANSACTIONS_BTN],
         [DEPOSITS_ONLY_BTN, WITHDRAWALS_ONLY_BTN],
-        [ADS_ONLY_BTN],
+        [ADS_ONLY_BTN, TRANSFERS_ONLY_BTN],
         [MAIN_MENU_BTN]
     ]
     return ReplyKeyboardMarkup(
@@ -156,6 +167,18 @@ def confirm_recharge_keyboard():
         one_time_keyboard=False
     )
 
+def confirm_transfer_keyboard():
+    """Show confirm/cancel for internal transfer"""
+    keyboard = [
+        [CONFIRM_TRANSFER_BTN],
+        [CANCEL_TRANSFER_BTN]
+    ]
+    return ReplyKeyboardMarkup(
+        keyboard,
+        resize_keyboard=True,
+        one_time_keyboard=False
+    )
+
 def settings_reply_keyboard():
     """Settings submenu keyboard"""
     keyboard = [
@@ -172,7 +195,7 @@ def settings_reply_keyboard():
 def wallet_reply_keyboard():
     """Wallet submenu keyboard: Deposit, Withdraw, History"""
     keyboard = [
-        [DEPOSIT_BTN],
+        [DEPOSIT_BTN, TRANSFER_BTN],
         [BALANCE_BTN, WITHDRAW_BTN, HISTORY_BTN],
         [MAIN_MENU_BTN],
     ]
@@ -298,6 +321,20 @@ def create_campaign_confirm_inline_keyboard():
     keyboard = [
         [CONFIRM_CREATE_CAMPAIGN_BTN],
         [CANCEL_CREATE_CAMPAIGN_BTN],
+    ]
+    return ReplyKeyboardMarkup(
+        keyboard,
+        resize_keyboard=True,
+        one_time_keyboard=False
+    )
+
+
+def transfer_reply_keyboard():
+    """Transfer submenu with predefined amounts"""
+    keyboard = [
+        [TRANSFER_1_BTN, TRANSFER_5_BTN],
+        [TRANSFER_10_BTN, TRANSFER_25_BTN, TRANSFER_MAX_BTN],
+        [CANCEL_TRANSFER_BTN],
     ]
     return ReplyKeyboardMarkup(
         keyboard,

@@ -76,6 +76,8 @@ class WalletService:
             return q.filter(Transaction.type == TransactionType.campaign_spend)
         if filter_key == "withdrawals":
             return q.filter(Transaction.type == TransactionType.withdrawal)
+        if filter_key == "transfers":
+            return q.filter(Transaction.type == TransactionType.internal_transfer)
         return q
 
     @staticmethod
@@ -253,3 +255,36 @@ class WalletService:
                 tx_record.status = TransactionStatus.failed
                 tx_record.description = f"Withdrawal failed: {reason}"
             db.commit()
+
+    # ===== Internal Transfer (earn_balance -> ad_balance) =====
+    @staticmethod
+    def internal_transfer_earn_to_ad(user_id: int, amount: Decimal, fee_rate: Decimal) -> tuple[User | None, str | None]:
+        """
+        Move 'amount' from earn_balance to ad_balance atomically, and log a single
+        Transaction with type=internal_transfer on balance_type=ad_balance (net effect).
+        Returns (tx, error) where error in {None, 'not_found', 'insufficient_balance'}
+        """
+        with get_db_session() as db:
+            user = db.query(User).get(int(user_id))
+            if not user:
+                return None, "not_found"
+            if (user.earn_balance or Decimal("0")) < amount:
+                return None, "insufficient_balance"
+
+            # Apply transfer: deduct from earn, add to ad
+            user.earn_balance = (user.earn_balance or Decimal("0")) - amount
+            user.ad_balance = (user.ad_balance or Decimal("0")) + (amount - (amount * fee_rate))
+
+            tx = Transaction(
+                user_id=user.id,
+                type=TransactionType.internal_transfer,
+                status=TransactionStatus.completed,
+                amount_trx=amount,
+                balance_type=BalanceType.ad_balance,
+                description="Internal transfer earn->ad",
+            )
+            db.add(tx)
+            db.commit()
+            db.refresh(tx)
+            db.refresh(user)
+            return user, None

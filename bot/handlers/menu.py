@@ -14,6 +14,7 @@ from bot.keyboards import (
     BROWSE_BTN,
     BALANCE_BTN,
     CANCEL_CREATE_CAMPAIGN_BTN,
+    CONFIRM_CREATE_CAMPAIGN_BTN,
     MY_ADS_BTN,
     CANCEL_WITHDRAW_BTN,
     DEPOSIT_BTN,
@@ -34,6 +35,7 @@ from bot.keyboards import (
     DEPOSITS_ONLY_BTN,
     ADS_ONLY_BTN,
     WITHDRAWALS_ONLY_BTN,
+    TRANSFERS_ONLY_BTN,
     history_reply_keyboard,
     settings_reply_keyboard,
     main_reply_keyboard,
@@ -41,6 +43,7 @@ from bot.keyboards import (
     wallet_reply_keyboard,
     CANCEL_RECHARGE_BTN,
     CONFIRM_RECHARGE_BTN,
+    TRANSFER_BTN,
 )
 
 from bot.handlers.participation import browse_bots
@@ -51,6 +54,9 @@ from bot.handlers.wallet import (
     withdraw as wallet_withdraw,
     on_withdraw_text,
     WITHDRAW_STATE_KEY,
+    start_transfer,
+    on_transfer_text,
+    TRANSFER_STATE_KEY,
 )
 from bot.handlers.campaigns import (
     CREATE_CAMPAIGN_BOT_NAME_KEY,
@@ -181,6 +187,11 @@ async def handle_menu_selection(update, context):
         await on_withdraw_text(update, context)
         return
 
+    # If user is in transfer flow, delegate text to transfer flow
+    if context.user_data.get(TRANSFER_STATE_KEY):
+        await on_transfer_text(update, context)
+        return
+
     if text == BROWSE_BTN:
         await on_browse(update, context)
     elif text == MAIN_MENU_BTN:
@@ -199,6 +210,8 @@ async def handle_menu_selection(update, context):
         await reply_ephemeral(update, "Wallet:", reply_markup=wallet_reply_keyboard())
     elif text == HISTORY_BTN:
         await on_history(update, context)
+    elif text == TRANSFER_BTN:
+        await start_transfer(update, context)
     elif text == MY_ADS_BTN:
         await reply_ephemeral(update, "My Ads:", reply_markup=ads_reply_keyboard())
         await show_my_ads(update, context, page=1)
@@ -223,12 +236,13 @@ async def handle_menu_selection(update, context):
         await on_referral_info(update, context)
     elif text == CANCEL_WITHDRAW_BTN:
         await on_cancel_withdraw(update, context)
-    elif text in {ALL_TRANSACTIONS_BTN, DEPOSITS_ONLY_BTN, ADS_ONLY_BTN, WITHDRAWALS_ONLY_BTN}:
+    elif text in {ALL_TRANSACTIONS_BTN, DEPOSITS_ONLY_BTN, ADS_ONLY_BTN, WITHDRAWALS_ONLY_BTN, TRANSFERS_ONLY_BTN}:
         mapping = {
             ALL_TRANSACTIONS_BTN: "all",
             DEPOSITS_ONLY_BTN: "deposits",
             ADS_ONLY_BTN: "ads",
             WITHDRAWALS_ONLY_BTN: "withdrawals",
+            TRANSFERS_ONLY_BTN: "transfers",
         }
         await show_history(update, context, mapping[text], page=1)
     else:

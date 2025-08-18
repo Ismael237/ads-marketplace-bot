@@ -114,6 +114,7 @@ class TransactionType(enum.Enum):
     task_reward = 'task_reward'
     campaign_spend = 'campaign_spend'
     referral_commission = 'referral_commission'
+    internal_transfer = 'internal_transfer'
 
 
 class TransactionStatus(enum.Enum):

@@ -33,6 +33,9 @@ AMOUNT_PER_REFERRAL = float(os.getenv('AMOUNT_PER_REFERRAL', '10.0'))
 DEPOSIT_TO_MAIN_WALLET_RATE = float(os.getenv('DEPOSIT_TO_MAIN_WALLET_RATE', '0.9'))
 WITHDRAWAL_FEE_RATE = float(os.getenv('WITHDRAWAL_FEE_RATE', '0.01'))
 HISTORY_PAGE_SIZE = int(os.getenv('HISTORY_PAGE_SIZE', '3'))
+TRANSFER_FEE_RATE = float(os.getenv('TRANSFER_FEE_RATE', '0.005'))  # 0.5%
+MIN_TRANSFER_TRX = int(os.getenv('MIN_TRANSFER_TRX', '1'))
+TRANSFER_INTEGER_ONLY = os.getenv('TRANSFER_INTEGER_ONLY', 'true').lower() == 'true'
 
 # Sponsor commission on campaign recharge (percentage, e.g., 10 = 10%)
 SPONSOR_RECHARGE_COMMISSION_PERCENT = float(os.getenv('SPONSOR_RECHARGE_COMMISSION_PERCENT', '10'))

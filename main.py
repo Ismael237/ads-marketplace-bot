@@ -14,7 +14,6 @@ from bot.handlers.campaigns import (
     pause_campaign,
     resume_campaign,
     recharge_campaign,
-    on_create_campaign_callback,
     on_create_campaign_forward,
     on_my_ads_pagination,
     CREATE_CAMPAIGN_STATE_KEY,
@@ -78,8 +77,6 @@ def running_application() -> Application:
     app.add_handler(CallbackQueryHandler(on_withdraw_callback, pattern=r"^withdraw_(confirm|cancel)$"))
     app.add_handler(CallbackQueryHandler(on_copy_address, pattern=r"^copy:.+"))
 
-    # Campaign creation inline callbacks
-    app.add_handler(CallbackQueryHandler(on_create_campaign_callback, pattern=r"^create_campaign_(confirm|cancel)$"))
     # My Ads pagination
     app.add_handler(CallbackQueryHandler(on_my_ads_pagination, pattern=r"^myads_(prev|next)_\d+$"))
     # My Ads owner actions

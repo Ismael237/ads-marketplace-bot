@@ -116,30 +116,30 @@ async def on_history(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def on_help(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await reply_ephemeral(update, "Help\\: Use the menu to browse campaigns, deposit TRX, withdraw earnings, and manage referrals\\.")
+    await reply_ephemeral(update, messages.help_message())
 
 
 async def on_support(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await reply_ephemeral(update, f"Support\\: Contact @{_esc(config.TELEGRAM_ADMIN_USERNAME or 'admin')}")
+    await reply_ephemeral(update, messages.support_message(config.TELEGRAM_ADMIN_USERNAME))
 
 
 async def on_about(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await reply_ephemeral(update, "About\\: Campaign Marketplace Bot on TRON\\.")
+    await reply_ephemeral(update, messages.about_message())
 
 
 async def on_qa(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await reply_ephemeral(update, "Q&A\\: Coming soon\\.")
+    await reply_ephemeral(update, messages.qa_message())
 
 
 async def on_referral_info(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await reply_ephemeral(update, "Referral Info\\: Earn commissions from your invited users\\.")
+    await reply_ephemeral(update, messages.referral_info_message())
 
 
 async def on_main_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await reply_ephemeral(update, "Choose an option\\:", reply_markup=main_reply_keyboard())
+    await reply_ephemeral(update, messages.main_menu_intro(), reply_markup=main_reply_keyboard())
 
 
-async def handle_menu_selection(update, context):
+async def handle_menu_selection(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = (update.message.text or "").strip()
 
     # Handle Cancel Recharge first (reply keyboard)
@@ -228,7 +228,7 @@ async def handle_menu_selection(update, context):
         await reply_ephemeral(update, "Unknown command\\. Please use the menu\\.", reply_markup=main_reply_keyboard())
 
 # Error handler
-async def error(update, context):
+async def handle_error(update, context):
     """Log Errors caused by Updates."""
     logger.warning(f'Update "{update}" caused error "{context.error}"')
     try:

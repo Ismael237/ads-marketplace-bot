@@ -7,6 +7,7 @@ from telegram.constants import ParseMode
 
 from services.campaign_service import CampaignService
 from bot.keyboards import (
+    RECHARGE_MAX_BTN,
     SKIP_BTN,
     ads_reply_keyboard,
     cancel_create_campaign_keyboard,
@@ -19,6 +20,7 @@ from bot.keyboards import (
 )
 from bot.utils import reply_ephemeral, safe_notify_user
 from bot import messages
+from services.wallet_service import WalletService
 from utils.logger import logger
 from utils.validators import sanitize_telegram_username
 import config
@@ -58,14 +60,14 @@ async def create_campaign(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await reply_ephemeral(update, "Please /start first")
             return
         final_title = title or f"Campaign by @{user.username or 'user'}"
-        camp = CampaignService.create_campaign(
+        CampaignService.create_campaign(
             owner=user,
             title=final_title,
             bot_link=bot_link,
             bot_username=bot_username or "",
             amount_per_referral=amount_dec,
         )
-        await reply_ephemeral(update, messages.create_campaign_created(camp.id))
+        await reply_ephemeral(update, messages.create_campaign_created())
         # After successful creation, show user's ads list
         await show_my_ads(update, context)
         return
@@ -135,10 +137,57 @@ def _get_forward_origin_title(msg) -> str | None:
         logger.error("Failed to extract forward origin title")
     return None
 
+def _clear_create_campaign_state(context: ContextTypes.DEFAULT_TYPE):
+    context.user_data.pop(CREATE_CAMPAIGN_STATE_KEY, None)
+    context.user_data.pop(CREATE_CAMPAIGN_LINK_KEY, None)
+    context.user_data.pop(CREATE_CAMPAIGN_USERNAME_KEY, None)
+    context.user_data.pop(CREATE_CAMPAIGN_TITLE_KEY, None)
+    context.user_data.pop(CREATE_CAMPAIGN_BOT_NAME_KEY, None)
+
+async def _skip_campaign_title(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    bot_name = context.user_data.get(CREATE_CAMPAIGN_BOT_NAME_KEY)
+    username = context.user_data.get(CREATE_CAMPAIGN_USERNAME_KEY) or ""
+    context.user_data[CREATE_CAMPAIGN_TITLE_KEY] = bot_name or username
+
+async def _cancel_create_campaign(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    _clear_create_campaign_state(context)
+    await reply_ephemeral(update, messages.create_campaign_cancelled(), reply_markup=ads_reply_keyboard())
+
+async def _confirm_create_campaign(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    bot_link = context.user_data.get(CREATE_CAMPAIGN_LINK_KEY)
+    bot_username = context.user_data.get(CREATE_CAMPAIGN_USERNAME_KEY)
+    title = context.user_data.get(CREATE_CAMPAIGN_TITLE_KEY) or bot_username or ""
+    if not bot_link or not bot_username:
+        await reply_ephemeral(update, "Missing campaign data\\. Please start again with '➕ Create Ad'\\\.")
+        return
+    amount_dec = Decimal(str(config.AMOUNT_PER_REFERRAL))
+    user = CampaignService.get_user_by_telegram_id(str(update.effective_user.id))
+    if not user:
+        await reply_ephemeral(update, "Please /start first")
+        return
+    camp = CampaignService.create_campaign(
+        owner=user,
+        title=title,
+        bot_link=bot_link,
+        bot_username=bot_username,
+        amount_per_referral=amount_dec,
+    )
+    # clear state
+    _clear_create_campaign_state(context)
+    await reply_ephemeral(update, messages.create_campaign_created(), reply_markup=ads_reply_keyboard())
+    # Show updated list of user's campaigns
+    await show_my_ads(update, context)
+    return
+
 
 async def on_create_campaign_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
     state = context.user_data.get(CREATE_CAMPAIGN_STATE_KEY)
     text_in = (update.effective_message.text or "").strip()
+    
+    if text_in == CANCEL_CREATE_CAMPAIGN_BTN:
+        await _cancel_create_campaign(update, context)
+        return
+
     if state == "ask_link":
         username = _extract_username_from_input(text_in)
         if not username:
@@ -154,10 +203,7 @@ async def on_create_campaign_text(update: Update, context: ContextTypes.DEFAULT_
         return
     elif state == "ask_title":
         if text_in == SKIP_BTN:
-            # use default = bot display name if available, else username
-            bot_name = context.user_data.get(CREATE_CAMPAIGN_BOT_NAME_KEY)
-            username = context.user_data.get(CREATE_CAMPAIGN_USERNAME_KEY) or ""
-            context.user_data[CREATE_CAMPAIGN_TITLE_KEY] = bot_name or username
+            await _skip_campaign_title(update, context)
         else:
             context.user_data[CREATE_CAMPAIGN_TITLE_KEY] = text_in
         # show confirm
@@ -175,35 +221,7 @@ async def on_create_campaign_text(update: Update, context: ContextTypes.DEFAULT_
     elif state == "confirm":
         # Reply keyboard confirm/cancel actions
         if text_in == CONFIRM_CREATE_CAMPAIGN_BTN:
-            bot_link = context.user_data.get(CREATE_CAMPAIGN_LINK_KEY)
-            bot_username = context.user_data.get(CREATE_CAMPAIGN_USERNAME_KEY)
-            title = context.user_data.get(CREATE_CAMPAIGN_TITLE_KEY) or bot_username or ""
-            if not bot_link or not bot_username:
-                await reply_ephemeral(update, "Missing campaign data. Please start again with '➕ Create Ad'.")
-                return
-            amount_dec = Decimal(str(config.AMOUNT_PER_REFERRAL))
-            user = CampaignService.get_user_by_telegram_id(str(update.effective_user.id))
-            if not user:
-                await reply_ephemeral(update, "Please /start first")
-                return
-            camp = CampaignService.create_campaign(
-                owner=user,
-                title=title,
-                bot_link=bot_link,
-                bot_username=bot_username,
-                amount_per_referral=amount_dec,
-            )
-            # clear state
-            for k in [CREATE_CAMPAIGN_STATE_KEY, CREATE_CAMPAIGN_LINK_KEY, CREATE_CAMPAIGN_USERNAME_KEY, CREATE_CAMPAIGN_TITLE_KEY]:
-                context.user_data.pop(k, None)
-            await reply_ephemeral(update, messages.create_campaign_created(camp.id), reply_markup=ads_reply_keyboard())
-            # Show updated list of user's campaigns
-            await show_my_ads(update, context)
-            return
-        if text_in == CANCEL_CREATE_CAMPAIGN_BTN:
-            for k in [CREATE_CAMPAIGN_STATE_KEY, CREATE_CAMPAIGN_LINK_KEY, CREATE_CAMPAIGN_USERNAME_KEY, CREATE_CAMPAIGN_TITLE_KEY]:
-                context.user_data.pop(k, None)
-            await reply_ephemeral(update, messages.create_campaign_cancelled(), reply_markup=ads_reply_keyboard())
+            await _confirm_create_campaign(update, context)
             return
 
 
@@ -222,45 +240,6 @@ async def on_create_campaign_forward(update: Update, context: ContextTypes.DEFAU
     bot_name = _get_forward_origin_title(update.effective_message) or bot_username
     context.user_data[CREATE_CAMPAIGN_BOT_NAME_KEY] = bot_name
     await reply_ephemeral(update, messages.create_campaign_ask_title(bot_name), reply_markup=title_step_keyboard())
-
-
-async def on_create_campaign_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    query = update.callback_query
-    if not query:
-        return
-    await query.answer()
-    data = query.data
-    if data == "create_campaign_cancel":
-        for k in [CREATE_CAMPAIGN_STATE_KEY, CREATE_CAMPAIGN_LINK_KEY, CREATE_CAMPAIGN_USERNAME_KEY, CREATE_CAMPAIGN_TITLE_KEY]:
-            context.user_data.pop(k, None)
-        await query.edit_message_reply_markup(reply_markup=None)
-        await query.message.reply_markdown_v2(messages.create_campaign_cancelled())
-        return
-    if data == "create_campaign_confirm":
-        bot_link = context.user_data.get(CREATE_CAMPAIGN_LINK_KEY)
-        bot_username = context.user_data.get(CREATE_CAMPAIGN_USERNAME_KEY)
-        title = context.user_data.get(CREATE_CAMPAIGN_TITLE_KEY) or bot_username or ""
-        if not bot_link or not bot_username:
-            return
-        amount_dec = Decimal(str(config.AMOUNT_PER_REFERRAL))
-        user = CampaignService.get_user_by_telegram_id(str(update.effective_user.id))
-        if not user:
-            return
-        camp = CampaignService.create_campaign(
-            owner=user,
-            title=title,
-            bot_link=bot_link,
-            bot_username=bot_username,
-            amount_per_referral=amount_dec,
-        )
-        # clear state
-        for k in [CREATE_CAMPAIGN_STATE_KEY, CREATE_CAMPAIGN_LINK_KEY, CREATE_CAMPAIGN_USERNAME_KEY, CREATE_CAMPAIGN_TITLE_KEY]:
-            context.user_data.pop(k, None)
-        await query.edit_message_reply_markup(reply_markup=None)
-        await query.message.reply_markdown_v2(messages.create_campaign_created(camp.id), reply_markup=ads_reply_keyboard())
-        # Show updated list of user's campaigns
-        await show_my_ads(update, context)
-        return
 
 
 def _my_ads_inline_keyboard(index: int, total: int, camp_id: int, is_active: bool) -> 'InlineKeyboardMarkup':
@@ -391,20 +370,29 @@ async def on_myads_recharge_text(update: Update, context: ContextTypes.DEFAULT_T
     if state != "ask_amount":
         return
     text_in = (update.effective_message.text or "").strip()
-    # parse tolerant amount
-    amount = _parse_amount_text(text_in)
+    user = WalletService.get_user_by_telegram_id(str(update.effective_user.id))
     min_recharge = Decimal(str(getattr(config, "MIN_RECHARGE_TRX", 1)))
-    if not amount or amount < min_recharge:
-        user = CampaignService.get_user_by_telegram_id(str(update.effective_user.id))
-        if not user:
-            await reply_ephemeral(update, "Please /start first")
-            return
-        await reply_ephemeral(update, messages.myads_recharge_ask_amount(user.ad_balance))
+    if not user:
+        await reply_ephemeral(update, "Please /start first")
         return
+    if text_in == RECHARGE_MAX_BTN:
+        try:
+            max_int = int(Decimal(user.ad_balance))
+        except Exception:
+            max_int = 0
+        if max_int < int(min_recharge):
+            await reply_ephemeral(update, messages.recharge_invalid_amount(), reply_markup=recharge_reply_keyboard())
+            return
+        amount = max_int
+    else:
+        amount = _parse_amount_text(text_in)
+        if amount is None:
+            await reply_ephemeral(update, messages.recharge_invalid_amount(), reply_markup=recharge_reply_keyboard())
+            return
+
     # Optional: check against user's ad_balance now for better UX
-    user = CampaignService.get_user_by_telegram_id(str(update.effective_user.id))
-    if not user or user.ad_balance < amount:
-        await reply_ephemeral(update, "Insufficient ad\_balance\. Enter a lower amount or cancel\.")
+    if user.ad_balance < Decimal(str(amount)):
+        await reply_ephemeral(update, "Insufficient ad\\_balance\\. Enter a lower amount or cancel\\.")
         return
     context.user_data[MYADS_RECHARGE_AMOUNT_KEY] = amount
     # Ask for confirmation using reply keyboard

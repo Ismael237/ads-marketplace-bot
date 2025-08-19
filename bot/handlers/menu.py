@@ -13,8 +13,6 @@ from utils.helpers import escape_markdown_v2 as _esc
 from bot.keyboards import (
     BROWSE_BTN,
     BALANCE_BTN,
-    CANCEL_CREATE_CAMPAIGN_BTN,
-    CONFIRM_CREATE_CAMPAIGN_BTN,
     MY_ADS_BTN,
     CANCEL_WITHDRAW_BTN,
     DEPOSIT_BTN,
@@ -59,11 +57,6 @@ from bot.handlers.wallet import (
     TRANSFER_STATE_KEY,
 )
 from bot.handlers.campaigns import (
-    CREATE_CAMPAIGN_BOT_NAME_KEY,
-    CREATE_CAMPAIGN_LINK_KEY,
-    CREATE_CAMPAIGN_STATE_KEY,
-    CREATE_CAMPAIGN_TITLE_KEY,
-    CREATE_CAMPAIGN_USERNAME_KEY,
     on_create_campaign_text,
     create_campaign as create_campaign_handler,
     show_my_ads,
@@ -104,17 +97,6 @@ async def on_cancel_withdraw(update: Update, context: ContextTypes.DEFAULT_TYPE)
     context.user_data.pop(WITHDRAW_AMOUNT_KEY, None)
     context.user_data.pop(WITHDRAW_ADDRESS_KEY, None)
     await reply_ephemeral(update, messages.withdraw_cancelled(), reply_markup=main_reply_keyboard())
-
-async def on_confirm_create_campaign(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await create_campaign_handler(update, context)
-
-async def on_cancel_create_campaign(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    context.user_data.pop(CREATE_CAMPAIGN_STATE_KEY, None)
-    context.user_data.pop(CREATE_CAMPAIGN_LINK_KEY, None)
-    context.user_data.pop(CREATE_CAMPAIGN_USERNAME_KEY, None)
-    context.user_data.pop(CREATE_CAMPAIGN_TITLE_KEY, None)
-    context.user_data.pop(CREATE_CAMPAIGN_BOT_NAME_KEY, None)
-    await reply_ephemeral(update, messages.create_campaign_cancelled(), reply_markup=ads_reply_keyboard())
 
 
 async def on_referral(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -183,6 +165,7 @@ async def handle_menu_selection(update, context):
     if context.user_data.get("create_campaign_state"):
         await on_create_campaign_text(update, context)
         return
+        
     if context.user_data.get(WITHDRAW_STATE_KEY):
         await on_withdraw_text(update, context)
         return
@@ -220,10 +203,6 @@ async def handle_menu_selection(update, context):
         await create_campaign_handler(update, context)
     elif text == ADS_LIST_BTN:
         await show_my_ads(update, context, page=1)
-    elif text == CONFIRM_CREATE_CAMPAIGN_BTN:
-        await on_confirm_create_campaign(update, context)
-    elif text == CANCEL_CREATE_CAMPAIGN_BTN:
-        await on_cancel_create_campaign(update, context)
     elif text == HELP_BTN:
         await on_help(update, context)
     elif text == SUPPORT_BTN:

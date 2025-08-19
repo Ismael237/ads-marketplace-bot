@@ -147,10 +147,16 @@ bot-marketplace/
 
 ## Version
 
-- Current version: 1.0.3
+- Current version: 1.0.4
 - Release type: Minor
 
 ## Changelog
+
+### 1.0.4 — Minor
+
+• Feature: Centralized, styled menu/info messages (Help, Support, About, Q&A, Referral Info, Main Menu) in `bot/messages.py`
+• Refactor: `bot/handlers/menu.py` now uses centralized message builders instead of hardcoded texts
+• Fix: Consistent MarkdownV2 escaping across message content
 
 ### 1.0.3 — Minor
 

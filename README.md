@@ -147,19 +147,19 @@ bot-marketplace/
 
 ## Version
 
-- Current version: 1.0.2
+- Current version: 1.0.3
 - Release type: Minor
 
 ## Changelog
 
-### 1.0.2 — Minor
+### 1.0.3 — Minor
 
-• Feature: Earn-to-Ads Internal Transfer (integer-only, min 1 TRX, presets, MAX)
-• UX: Confirmation shows amount, 0.5% fee, net, and irreversibility note
-• Wallet Service: apply fee and credit net to ads, return updated balances
-• History: new filter "Transfers Only" with 🔁 emoji
-• Config: add TRANSFER_FEE_RATE, MIN_TRANSFER_TRX, TRANSFER_INTEGER_ONLY
-• Migration: extend TransactionType enum with `internal_transfer`
+• Fix: Button Cancel now properly aborts campaign creation and cleans up state
+• Fix: Improved state management in multi-step campaign creation flow
+• Fix: Better error handling for invalid inputs during campaign setup
+• Feature: Ad Recharge flow (amount entry with presets incl. MAX, reply keyboard confirm/cancel, min validation)
+• UX: Clearer feedback messages when campaign creation is cancelled or fails
+• UX: More robust state cleanup after campaign creation completion
 
 Upgrade steps:
 1. Ensure new env vars exist (see `.env.template`).

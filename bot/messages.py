@@ -217,11 +217,16 @@ def create_campaign_confirm(bot_link: str, bot_username: str, amount_per_referra
 
 
 def create_campaign_cancelled() -> str:
-    return "❌ Campaign creation cancelled\."
+    return "❌ Campaign creation cancelled\\."
 
 
-def create_campaign_created(campaign_id: int) -> str:
-    return f"🎉 Campaign created with id `{_esc(campaign_id)}`"
+def create_campaign_created() -> str:
+    sep = get_separator()
+    return (
+        "🎉 Campaign Created Successfully\n"
+        f"{sep}\n"
+        "⚡️ Click the Recharge button to add funds and activate your campaign\\!"
+    )
 
 
 # ==================== My Ads (Owner view) ====================
@@ -257,9 +262,9 @@ def myads_recharge_confirm(amount: Decimal) -> str:
     )
 
 
-def myads_recharge_done(campaign_id: int, amount: Decimal) -> str:
+def myads_recharge_done(amount: Decimal) -> str:
     return (
-        f"✅ Recharged campaign `{_esc(campaign_id)}` by `{format_trx_escaped(amount)} TRX`"
+        f"✅ Recharged campaign by `{format_trx_escaped(amount)} TRX`"
     )
 
 
@@ -345,6 +350,8 @@ def transfer_cancelled() -> str:
 def transfer_invalid_amount() -> str:
     return "⚠️ Invalid amount\\. Please enter an integer amount of at least 1 TRX\\."
 
+def recharge_invalid_amount() -> str:
+    return "⚠️ Invalid amount\\. Please enter an amount of at least 1 TRX\\."
 
 def transfer_insufficient_balance() -> str:
     return "⛔ Insufficient earnings balance for this transfer\\."

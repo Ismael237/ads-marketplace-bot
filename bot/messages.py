@@ -458,3 +458,15 @@ def main_menu_intro() -> str:
         "• 👥 Referrals\n"
         "• ⚙️ Settings / Help"
     )
+
+
+# ==================== Notifications ====================
+def sponsor_new_referral_notification(display_label: Optional[str]) -> str:
+    sep = get_separator()
+    user_display = _esc(display_label) if display_label else "a new user"
+    return (
+        "🎉 New Referral Joined\n"
+        f"{sep}\n"
+        f"You just gained a new downline: {user_display}\n\n"
+        "Track your referral stats from the Referrals menu\."
+    )

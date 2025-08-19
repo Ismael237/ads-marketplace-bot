@@ -147,10 +147,17 @@ bot-marketplace/
 
 ## Version
 
-- Current version: 1.0.4
+- Current version: 1.0.5
 - Release type: Minor
 
 ## Changelog
+
+### 1.0.5 — Minor
+
+• Feature: Notify sponsor when a new referral joins on `/start` (uses @username or first_name fallback)
+• Feature: Make scheduler intervals configurable via env (`DEPOSIT_MONITOR_INTERVAL_MINUTES`, `WITHDRAWAL_PROCESSOR_INTERVAL_MINUTES`) and wire in `main.py`
+• Config: Add new interval settings in `config.py`
+• DevOps: Update `.env.template` with new variables
 
 ### 1.0.4 — Minor
 

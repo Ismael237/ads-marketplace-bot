@@ -103,8 +103,20 @@ def start_scheduler():
     executors = {'default': APSchedulerThreadPoolExecutor(5)}
     scheduler = BackgroundScheduler(jobstores=jobstores, executors=executors, timezone='UTC')
     # cron job
-    scheduler.add_job(run_deposit_monitor, 'interval', minutes=1, id='monitor_deposits', replace_existing=True)
-    scheduler.add_job(run_withdrawal_processor, 'interval', minutes=1, id='process_withdrawals', replace_existing=True)
+    scheduler.add_job(
+        run_deposit_monitor,
+        'interval',
+        minutes=int(config.DEPOSIT_MONITOR_INTERVAL_MINUTES),
+        id='monitor_deposits',
+        replace_existing=True,
+    )
+    scheduler.add_job(
+        run_withdrawal_processor,
+        'interval',
+        minutes=int(config.WITHDRAWAL_PROCESSOR_INTERVAL_MINUTES),
+        id='process_withdrawals',
+        replace_existing=True,
+    )
     scheduler.start()
     logger.info("[Scheduler] APScheduler started with persistent jobs.")
     atexit.register(lambda: scheduler.shutdown())
@@ -118,5 +130,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
-

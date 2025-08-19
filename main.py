@@ -24,7 +24,7 @@ from bot.handlers.participation import browse_bots, forward_validator, on_campai
 from bot.handlers.wallet import deposit as wallet_deposit, on_copy_address, on_withdraw_callback, withdraw as wallet_withdraw
 from bot.handlers.history import history, history_pagination
 from bot.handlers.referral import referral as referral_handler
-from bot.handlers.menu import handle_menu_selection
+from bot.handlers.menu import handle_error, handle_menu_selection
 from bot.handlers.core import start
 from workers.deposit_monitor import run_deposit_monitor
 from workers.withdrawal_processor import run_withdrawal_processor
@@ -92,6 +92,8 @@ def running_application() -> Application:
     
     # Menu handlers
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_menu_selection))
+
+    app.add_error_handler(handle_error)
 
     logger.info("Bot is running...")
     app.run_polling()

@@ -149,7 +149,7 @@ def history_intro() -> str:
     return (
         "📜 History\n"
         f"{sep}\n"
-        "Choose a filter below to view your transactions\."
+        "Choose a filter below to view your transactions\\."
     )
 
 
@@ -182,7 +182,7 @@ def create_campaign_ask_link() -> str:
         f"{sep}\n"
         "Send the target bot link or username\n"
         "Examples: `https://t\.me/MyBot` or `@MyBot`\n\n"
-        "You can cancel anytime\."
+        "You can cancel anytime\\."
     )
 
 
@@ -311,7 +311,7 @@ def transfer_ask_amount(current_earn_balance: Decimal, fee_rate: float) -> str:
         f"Transfer Fee: `{_esc(fee_rate * 100)}%`\n"
         "Minimum Transfer: `1 TRX`\n"
         f"{sep}\n"
-        "🔢 Enter amount or use quick options below\\.\n"
+        "🔢 Enter amount or use quick options below\.\n"
         "ℹ️ *Note:* Whole numbers only"
     )
 
@@ -350,8 +350,111 @@ def transfer_cancelled() -> str:
 def transfer_invalid_amount() -> str:
     return "⚠️ Invalid amount\\. Please enter an integer amount of at least 1 TRX\\."
 
+
 def recharge_invalid_amount() -> str:
     return "⚠️ Invalid amount\\. Please enter an amount of at least 1 TRX\\."
 
+
 def transfer_insufficient_balance() -> str:
     return "⛔ Insufficient earnings balance for this transfer\\."
+
+
+# ==================== Menu & Info Messages ====================
+def help_message() -> str:
+    sep = get_separator()
+    min_dep = format_trx_escaped(Decimal(str(config.MIN_DEPOSIT_TRX))) if hasattr(config, "MIN_DEPOSIT_TRX") else "1"
+    min_wd = format_trx_escaped(Decimal(str(config.MIN_WITHDRAWAL_TRX))) if hasattr(config, "MIN_WITHDRAWAL_TRX") else "1"
+    part_comm = _esc(int(getattr(config, "SPONSOR_PARTICIPATION_COMMISSION_PERCENT", 5)))
+    ad_comm = _esc(int(getattr(config, "SPONSOR_RECHARGE_COMMISSION_PERCENT", 10)))
+    return (
+        "🆘 Help\n"
+        f"{sep}\n"
+        "Here\'s what you can do:\n"
+        "• 📣 Browse campaigns and complete tasks to earn TRX\.\n"
+        "• 💰 Deposit TRX to fund your ads balance\.\n"
+        "• 🧾 Create, recharge, pause/resume your ad campaigns\.\n"
+        "• 🏧 Withdraw your earnings to any TRON wallet\.\n"
+        "• 👥 Invite friends and earn referral commissions\.\n\n"
+        f"Minimums: Deposit `{min_dep} TRX`, Withdraw `{min_wd} TRX`\n"
+        f"Referrals: `{part_comm}%` on tasks, `{ad_comm}%` on ad spending\n\n"
+        "Tip: Use the menu buttons below to navigate\."
+    )
+
+
+def support_message(admin_username: Optional[str]) -> str:
+    sep = get_separator()
+    admin = f"@{_esc(admin_username)}" if admin_username else (f"@{_esc(config.TELEGRAM_ADMIN_USERNAME)}" if getattr(config, "TELEGRAM_ADMIN_USERNAME", None) else "admin")
+    return (
+        "🛟 Support\n"
+        f"{sep}\n"
+        f"Need help or found a bug\? Contact {admin}\n\n"
+        "Please include:\n"
+        "• What you were trying to do\n"
+        "• Any error message\n"
+        "• Screenshots if possible"
+    )
+
+
+def about_message() -> str:
+    sep = get_separator()
+    return (
+        "ℹ️ About\n"
+        f"{sep}\n"
+        "Campaign Marketplace Bot on TRON\.\n"
+        "• ⚡ Fast earnings and instant participation flow\n"
+        "• 🔒 Secure balances \(earn vs\. ads\) and encrypted keys\n"
+        "• 🔗 TRON only \(native TRX\)\n"
+    )
+
+
+def qa_message() -> str:
+    sep = get_separator()
+    min_dep = format_trx_escaped(Decimal(str(config.MIN_DEPOSIT_TRX))) if hasattr(config, "MIN_DEPOSIT_TRX") else "1"
+    min_wd = format_trx_escaped(Decimal(str(config.MIN_WITHDRAWAL_TRX))) if hasattr(config, "MIN_WITHDRAWAL_TRX") else "1"
+    return (
+        "❓ Frequently Asked Questions\n"
+        f"{sep}\n"
+        "💰 Earning TRX:\n"
+        "• Browse active campaigns\n" 
+        "• Message the target bot\n"
+        "• Forward a recent message here\n\n"
+        "📢 Creating Campaigns:\n"
+        "• Deposit TRX to your ad balance\n"
+        "• Use /create_campaign command\n" 
+        "• Set reward per participant\n\n"
+        "⏱️ Processing Times:\n"
+        "• Deposits: ~2 minutes\n"
+        "• Withdrawals: ~2 minutes\n\n"
+        "💫 Key Details:\n"
+        f"• Min Deposit: `{min_dep} TRX`\n"
+        f"• Min Withdrawal: `{min_wd} TRX`\n"
+        "• Campaign owners cannot participate in own ads"
+    )
+
+
+def referral_info_message() -> str:
+    sep = get_separator()
+    task_comm = _esc(int(getattr(config, "SPONSOR_PARTICIPATION_COMMISSION_PERCENT", 5)))
+    spend_comm = _esc(int(getattr(config, "SPONSOR_RECHARGE_COMMISSION_PERCENT", 10)))
+    return (
+        "👥 Referral Program\n"
+        f"{sep}\n"
+        "Earn commissions from users you invite:\n"
+        f"• `{task_comm}%` of their task rewards\n"
+        f"• `{spend_comm}%` of their ad spending\n\n"
+        "Get your personal link in the Referral menu and start sharing\."
+    )
+
+
+def main_menu_intro() -> str:
+    sep = get_separator()
+    return (
+        "🏠 Main Menu\n"
+        f"{sep}\n"
+        "Choose an option below to get started\.\n"
+        "• 📣 Browse campaigns\n"
+        "• 💳 Balance & Wallet\n"
+        "• 📢 My Ads\n"
+        "• 👥 Referrals\n"
+        "• ⚙️ Settings / Help"
+    )

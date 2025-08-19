@@ -38,9 +38,13 @@ WITHDRAW_1000_BTN = "1,000 TRX"
 WITHDRAW_5000_BTN = "5,000 TRX"
 
 # Recharge Buttons
+RECHARGE_1_BTN = "1 TRX"
+RECHARGE_5_BTN = "5 TRX"
 RECHARGE_10_BTN = "10 TRX"
+RECHARGE_25_BTN = "25 TRX"
 RECHARGE_50_BTN = "50 TRX"
 RECHARGE_100_BTN = "100 TRX"
+RECHARGE_MAX_BTN = "MAX"
 
 # History Buttons
 ALL_TRANSACTIONS_BTN = "📋 All Transactions"
@@ -145,8 +149,8 @@ def history_reply_keyboard():
 def recharge_reply_keyboard():
     """Recharge submenu with predefined amounts"""
     keyboard = [
-        [RECHARGE_10_BTN],
-        [RECHARGE_50_BTN, RECHARGE_100_BTN],
+        [RECHARGE_1_BTN, RECHARGE_5_BTN, RECHARGE_10_BTN],
+        [RECHARGE_25_BTN, RECHARGE_50_BTN, RECHARGE_100_BTN, RECHARGE_MAX_BTN],
         [CANCEL_RECHARGE_BTN],
     ]
     return ReplyKeyboardMarkup(

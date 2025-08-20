@@ -147,10 +147,16 @@ bot-marketplace/
 
 ## Version
 
-- Current version: 1.0.5
-- Release type: Minor
+- Current version: 1.0.6
+- Release type: Patch
 
 ## Changelog
+
+### 1.0.6 — Patch
+
+• TRON: Add optional `TRON-PRO-API-KEY` header in `utils/tron_client.py` when `TRON_API_KEY` is set
+• Config: Expose `TRON_API_KEY` via `config.py` and `.env.template`
+• Reliability: Throttle wallet scan loop in `workers/deposit_monitor.py` (200ms between wallets) to reduce rate limits
 
 ### 1.0.5 — Minor
 

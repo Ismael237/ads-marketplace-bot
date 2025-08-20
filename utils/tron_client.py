@@ -1,7 +1,7 @@
 from tronpy import Tron
 from tronpy.keys import PrivateKey
 from tronpy.providers import HTTPProvider
-from config import TRON_API_URL, TRON_PRIVATE_KEY
+from config import TRON_API_KEY, TRON_API_URL, TRON_PRIVATE_KEY
 import requests
 from utils.logger import get_logger
 
@@ -57,6 +57,8 @@ class TronClient:
         try:
             url = f"{TRON_API_URL}/v1/accounts/{address}/transactions?limit=50&only_to=true&sort=-timestamp"
             headers = {"accept": "application/json"}
+            if TRON_API_KEY:
+                headers["TRON-PRO-API-KEY"] = TRON_API_KEY
             response = requests.get(url, headers=headers, timeout=10)
             if response.status_code == 200:
                 data = response.json()
@@ -106,6 +108,8 @@ def get_trx_transactions(address):
         headers = {
             "accept": "application/json"
         }
+        if TRON_API_KEY:
+            headers["TRON-PRO-API-KEY"] = TRON_API_KEY
         response = requests.get(url, headers=headers)
         if response.status_code == 200:
             data = response.json()

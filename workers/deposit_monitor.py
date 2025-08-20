@@ -60,13 +60,10 @@ def forward_deposit_to_main_wallet(wallet: UserWallet, amount: Decimal, deposit_
 
 def monitor_deposits():
     logger.info("[Worker] Monitoring TRON deposits started.")
-    call_count = 0
     try:
         wallets = WalletService.list_wallets()
         for wallet in wallets:
-            call_count += 1
-            if call_count % 10 == 0:  # Every 10th call
-                time.sleep(1.2)  # Sleep for 1.2 seconds
+            time.sleep(0.2)
             txs = get_trx_transactions(wallet.address)
             for tx in txs:
                 amount = Decimal(tx['amount']) / Decimal('1000000')

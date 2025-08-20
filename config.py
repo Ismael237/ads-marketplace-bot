@@ -19,8 +19,9 @@ TELEGRAM_ADMIN_USERNAME = os.getenv('TELEGRAM_ADMIN_USERNAME')
 DATABASE_URL = os.getenv('DATABASE_URL', 'postgresql://username:password@localhost:5432/bot_marketplace')
 
 # TRON Network Configuration
-TRON_API_URL = os.getenv('TRON_API_URL', 'https://api.trongrid.io')
 TRON_PRIVATE_KEY = os.getenv('TRON_PRIVATE_KEY')
+TRON_API_URL = os.getenv('TRON_API_URL', 'https://api.trongrid.io')
+TRON_API_KEY = os.getenv('TRON_API_KEY')
 TRON_EXPLORER_URL = os.getenv('TRON_EXPLORER_URL', 'https://tronscan.org')
 
 # Security Configuration

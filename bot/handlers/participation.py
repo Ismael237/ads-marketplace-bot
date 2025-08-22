@@ -12,6 +12,7 @@ from bot import messages
 from utils.helpers import escape_markdown_v2, format_trx_escaped
 from decimal import Decimal
 import config
+from utils.logger import logger
 
 
 def _generate_campaign_view(update: Update, context: ContextTypes.DEFAULT_TYPE, index: int = 0):
@@ -25,23 +26,30 @@ def _generate_campaign_view(update: Update, context: ContextTypes.DEFAULT_TYPE, 
     except AttributeError:
         tg_id = None
     campaigns = ParticipationService.get_active_campaigns_for_browsing(tg_id)
+
     if not campaigns:
         return False, "No active campaigns"
+
     if index >= len(campaigns):
         msg = "You've reached the end of the campaign list\\.\n"
         msg += "There are no more active campaigns available\\.\n"
         return False, msg
+
     camp = campaigns[index]
+
     # Validate required attributes
     if not getattr(camp, 'bot_link', None):
         return False, "Campaign bot link is not available"
+
     if getattr(camp, 'amount_per_referral', None) is None:
         return False, "Campaign amount per referral is not set"
+
     # Build keyboard and text
     kb = campaigns_browse_keyboard(camp.bot_link, camp.id)
     apr = camp.amount_per_referral
     user_pct = Decimal(str(getattr(config, "PARTICIPATION_USER_REWARD_PERCENT", 75))) / Decimal("100")
     user_reward = Decimal(str(apr * user_pct)).quantize(Decimal("0.000001"))
+    logger.info(f"User reward: {user_reward}")
     title = getattr(camp, 'title', 'Untitled Campaign')
     text = messages.browse_campaign(title, user_reward)
     return True, {"text": text, "kb": kb, "index": index, "campaign_id": camp.id}

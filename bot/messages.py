@@ -181,7 +181,7 @@ def create_campaign_ask_link() -> str:
         "🆕 Create Campaign\n"
         f"{sep}\n"
         "Send the target bot link or username\n"
-        "Examples: `https://t\.me/MyBot` or `@MyBot`\n\n"
+        "Examples: `https://t\.me/MyBot?start\=referral_code`\n\n"
         "You can cancel anytime\\."
     )
 
@@ -420,7 +420,7 @@ def qa_message() -> str:
         "• Forward a recent message here\n\n"
         "📢 Creating Campaigns:\n"
         "• Deposit TRX to your ad balance\n"
-        "• Use /create_campaign command\n" 
+        "• Use /create\\_campaign command\n" 
         "• Set reward per participant\n\n"
         "⏱️ Processing Times:\n"
         "• Deposits: ~2 minutes\n"

@@ -147,10 +147,15 @@ bot-marketplace/
 
 ## Version
 
-- Current version: 1.0.6
-- Release type: Patch
+- Current version: 1.0.7
+- Release type: Fix
 
 ## Changelog
+
+### 1.0.7 — Fix
+
+• Campaigns: Remove @ username link handling
+• Helpers: Rewrite escape_markdown_v2 function, add and change default decimal for trx amount function"
 
 ### 1.0.6 — Patch
 

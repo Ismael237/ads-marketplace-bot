@@ -80,8 +80,6 @@ def _extract_username_from_input(text: str) -> str | None:
     t = (text or "").strip()
     if not t:
         return None
-    if t.startswith("@"):
-        return t[1:]
     # Try to parse t.me links
     lowered = t.lower()
     if "t.me/" in lowered:

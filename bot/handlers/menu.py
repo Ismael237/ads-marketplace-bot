@@ -68,6 +68,7 @@ from bot.handlers.campaigns import (
 )
 from bot.handlers.referral import referral as referral_handler
 from bot.handlers.history import show_history
+from utils.logger import logger
 
 async def on_browse(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await browse_bots(update, context)
@@ -226,6 +227,7 @@ async def handle_menu_selection(update: Update, context: ContextTypes.DEFAULT_TY
         await show_history(update, context, mapping[text], page=1)
     else:
         await reply_ephemeral(update, "Unknown command\\. Please use the menu\\.", reply_markup=main_reply_keyboard())
+
 
 # Error handler
 async def handle_error(update, context):

@@ -21,8 +21,11 @@ def generate_share_link(bot_username, referral_code):
 
 
 def escape_markdown_v2(text: str) -> str:
-    escape_chars = r'\\`*_\[\]()~>#+=|{}.!-'
-    return re.sub(f'([{re.escape(escape_chars)}])', r'\\\1', text)
+    """Escape Markdown V2 characters."""
+    escape_chars = ['_', '*', '[', ']', '(', ')', '~', '`', '>', '#', '+', '-', '=', '|', '{', '}', '.', '!']
+    for char in escape_chars:
+        text = text.replace(char, f'\\{char}')
+    return text
 
 
 def get_utc_time():
@@ -43,12 +46,12 @@ def generate_validation_link(length: int = 32) -> str:
     return ''.join(secrets.choice(characters) for _ in range(length))
 
 
-def format_trx_amount(amount: float, decimals: int = 2) -> str:
+def format_trx_amount(amount: float, decimals: int = 6) -> str:
     """Format TRX amount for display"""
     return f"{amount:.{decimals}f} TRX"
 
 
-def format_trx_escaped(amount) -> str:
+def format_trx_escaped(amount, decimals: int = 6) -> str:
     """Format a TRX numeric value to 2 decimals and escape for MarkdownV2. No unit."""
     try:
         num = float(amount)
@@ -57,12 +60,12 @@ def format_trx_escaped(amount) -> str:
             num = float(Decimal(str(amount)))
         except Exception:
             num = 0.0
-    return escape_markdown_v2(f"{num:.2f}")
+    return escape_markdown_v2(f"{num:.{decimals}f}")
 
 
 def calculate_commission(amount: float, rate: float) -> float:
     """Calculate commission amount based on rate"""
-    return round(amount * rate, 2)
+    return round(amount * rate, 6)
 
 
 def paginate_query(query, page: int = 1, per_page: int = 10):

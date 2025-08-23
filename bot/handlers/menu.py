@@ -62,9 +62,13 @@ from bot.handlers.campaigns import (
     show_my_ads,
     on_myads_recharge_text,
     on_myads_recharge_confirm_text,
+    on_edit_title_text,
+    on_edit_link_text,
     MYADS_RECHARGE_STATE_KEY,
     MYADS_RECHARGE_AMOUNT_KEY,
     MYADS_RECHARGE_CAMP_ID_KEY,
+    EDIT_TITLE_STATE_KEY,
+    EDIT_LINK_STATE_KEY,
 )
 from bot.handlers.referral import referral as referral_handler
 from bot.handlers.history import show_history
@@ -161,17 +165,27 @@ async def handle_menu_selection(update: Update, context: ContextTypes.DEFAULT_TY
         await on_myads_recharge_text(update, context)
         return
 
-    # If user is in withdraw flow, delegate text to wallet flow
-    # Route campaign creation first
+    # Route campaign title edit flow
+    if context.user_data.get(EDIT_TITLE_STATE_KEY) == "awaiting_title":
+        await on_edit_title_text(update, context)
+        return
+        
+    # Route campaign link edit flow
+    if context.user_data.get(EDIT_LINK_STATE_KEY) == "awaiting_link":
+        await on_edit_link_text(update, context)
+        return
+
+    # Route campaign creation flow
     if context.user_data.get("create_campaign_state"):
         await on_create_campaign_text(update, context)
         return
         
+    # Route withdraw flow
     if context.user_data.get(WITHDRAW_STATE_KEY):
         await on_withdraw_text(update, context)
         return
 
-    # If user is in transfer flow, delegate text to transfer flow
+    # Route transfer flow
     if context.user_data.get(TRANSFER_STATE_KEY):
         await on_transfer_text(update, context)
         return

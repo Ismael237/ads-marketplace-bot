@@ -229,6 +229,80 @@ def create_campaign_created() -> str:
     )
 
 
+# ==================== Campaign Editing ====================
+
+def edit_campaign_ask_title() -> str:
+    """Prompt user to enter a new campaign title"""
+    return (
+        "✏️ *Edit Campaign Title*\n\n"
+        "Please enter the new title for your campaign:"
+    )
+
+
+def edit_campaign_title_updated() -> str:
+    """Notification when campaign title is successfully updated"""
+    return "✅ *Title Updated*\n\nYour campaign title has been updated successfully!"
+
+
+def edit_campaign_ask_bot_link() -> str:
+    """Prompt user to enter a new bot link"""
+    return (
+        "🔗 *Update Bot Link*\n\n"
+        "Please send me the new bot link (e.g., https://t.me/yourbot or @yourbot):\n\n"
+        "⚠️ The bot must be public and you must be able to forward messages from it."
+    )
+
+
+def edit_campaign_ask_forward_verification(bot_username: str) -> str:
+    """Ask user to forward a message from the bot for verification"""
+    return (
+        f"🔍 *Verification Required*\n\n"
+        f"Please forward a message from @{bot_username} to verify ownership.\n\n"
+        f"1. Open the bot you want to link\n"
+        f"2. Send any message to the bot\n"
+        f"3. Forward that message here"
+    )
+
+
+def edit_campaign_bot_link_updated() -> str:
+    """Notification when bot link is successfully updated"""
+    return "✅ *Bot Link Updated*\n\nYour bot link has been updated successfully!"
+
+
+def edit_campaign_invalid_bot_username() -> str:
+    """Error message for invalid bot username format"""
+    return (
+        "❌ *Invalid Bot Username*\n\n"
+        "Please provide a valid bot link or username. It should be in the format:\n"
+        "• `https://t.me/yourbot`\n"
+        "• `@yourbot`\n"
+        "• or just `yourbot`"
+    )
+
+
+def edit_campaign_forward_verification_failed() -> str:
+    """Error message when forward verification fails"""
+    return (
+        "❌ *Verification Failed*\n\n"
+        "The forwarded message must be from the bot you're trying to link. "
+        "Please make sure to forward a message directly from that bot."
+    )
+
+
+def edit_campaign_forward_not_from_bot() -> str:
+    """Error message when forwarded message is not from a bot"""
+    return (
+        "❌ *Not a Bot*\n\n"
+        "The forwarded message must be from a bot account, not a regular user. "
+        "Please try again with a message from a bot."
+    )
+
+
+def edit_campaign_session_expired() -> str:
+    """Error message when edit session expires"""
+    return "❌ Session expired. Please try the edit operation again."
+
+
 # ==================== My Ads (Owner view) ====================
 def my_ad_overview(title: str, bot_username: str, bot_link: str, amount_per_referral: Decimal, balance: Decimal, is_active: bool, referral_count: int, idx: int, total: int) -> str:
     sep = get_separator()

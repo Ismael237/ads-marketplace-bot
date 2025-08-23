@@ -179,6 +179,21 @@ async def _confirm_create_campaign(update: Update, context: ContextTypes.DEFAULT
 
 
 async def on_create_campaign_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    # Check if we're in an edit flow first
+    edit_title_state = context.user_data.get(EDIT_TITLE_STATE_KEY)
+    edit_link_state = context.user_data.get(EDIT_LINK_STATE_KEY)
+    
+    # Handle title editing flow
+    if edit_title_state == "awaiting_title":
+        await on_edit_title_text(update, context)
+        return
+        
+    # Handle bot link editing flow - text input
+    if edit_link_state == "awaiting_link":
+        await on_edit_link_text(update, context)
+        return
+    
+    # Original create campaign flow
     state = context.user_data.get(CREATE_CAMPAIGN_STATE_KEY)
     text_in = (update.effective_message.text or "").strip()
     
@@ -224,15 +239,23 @@ async def on_create_campaign_text(update: Update, context: ContextTypes.DEFAULT_
 
 
 async def on_create_campaign_forward(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    # Only process if we are in ask_forward state
+    # Check if we're in the bot link edit flow
+    edit_link_state = context.user_data.get(EDIT_LINK_STATE_KEY)
+    if edit_link_state == "awaiting_forward":
+        await on_edit_link_forward(update, context)
+        return
+        
+    # Original create campaign forward flow
     state = context.user_data.get(CREATE_CAMPAIGN_STATE_KEY)
     if state != "ask_forward":
         return
+        
     bot_username = context.user_data.get(CREATE_CAMPAIGN_USERNAME_KEY) or ""
     origin_username = _get_forward_origin_username(update.effective_message)
     if not origin_username or origin_username.lower() != bot_username.lower():
         await reply_ephemeral(update, messages.forward_not_from_expected())
         return
+        
     # Move to title step
     context.user_data[CREATE_CAMPAIGN_STATE_KEY] = "ask_title"
     bot_name = _get_forward_origin_title(update.effective_message) or bot_username
@@ -240,8 +263,23 @@ async def on_create_campaign_forward(update: Update, context: ContextTypes.DEFAU
     await reply_ephemeral(update, messages.create_campaign_ask_title(bot_name), reply_markup=title_step_keyboard())
 
 
-def _my_ads_inline_keyboard(index: int, total: int, camp_id: int, is_active: bool) -> 'InlineKeyboardMarkup':
+def _my_ads_inline_keyboard(index: int, total: int, camp_id: int, is_active: bool, is_editing: bool = False) -> 'InlineKeyboardMarkup':
     from telegram import InlineKeyboardButton, InlineKeyboardMarkup
+    
+    if is_editing:
+        # Edit submenu
+        buttons = [
+            [
+                InlineKeyboardButton("✏️ Edit Title", callback_data=f"myads_edit_title_{camp_id}"),
+                InlineKeyboardButton("🔗 Edit Bot Link", callback_data=f"myads_edit_link_{camp_id}")
+            ],
+            [
+                InlineKeyboardButton("🔙 Back", callback_data=f"myads_view_{camp_id}")
+            ]
+        ]
+        return InlineKeyboardMarkup(buttons)
+    
+    # Main campaign view
     buttons = []
     # Row: Toggle + Recharge
     toggle_text = "⏸️ Pause" if is_active else "▶️ Resume"
@@ -249,11 +287,14 @@ def _my_ads_inline_keyboard(index: int, total: int, camp_id: int, is_active: boo
         InlineKeyboardButton(toggle_text, callback_data=f"myads_toggle_{camp_id}"),
         InlineKeyboardButton("🔋 Recharge", callback_data=f"myads_recharge_{camp_id}"),
     ])
+    # Row: Edit button
+    buttons.append([
+        InlineKeyboardButton("✏️ Edit Campaign", callback_data=f"myads_edit_{camp_id}")
+    ])
     # Row: Navigation
     nav = []
     if index > 0:
         nav.append(InlineKeyboardButton("⬅️ Prev", callback_data=f"myads_prev_{index-1}"))
-
     if index < total - 1:
         nav.append(InlineKeyboardButton("➡️ Next", callback_data=f"myads_next_{index+1}"))
     if nav:
@@ -261,7 +302,7 @@ def _my_ads_inline_keyboard(index: int, total: int, camp_id: int, is_active: boo
     return InlineKeyboardMarkup(buttons)
 
 
-async def show_my_ads(update: Update, context: ContextTypes.DEFAULT_TYPE, page: int = 1):
+async def show_my_ads(update: Update, context: ContextTypes.DEFAULT_TYPE, page: int = 1, is_editing: bool = False):
     # page is 1-based index for display; we'll map to 0-based index
     user = CampaignService.get_user_by_telegram_id(str(update.effective_user.id))
     if not user:
@@ -269,15 +310,277 @@ async def show_my_ads(update: Update, context: ContextTypes.DEFAULT_TYPE, page: 
         return
     items = CampaignService.list_user_campaigns_by_owner(user.id)
     if not items:
-        await reply_ephemeral(update, "You have no ads yet\.")
+        await reply_ephemeral(update, "You have no ads yet\\.")
         return
     idx = max(0, min(len(items) - 1, page - 1))
     camp = items[idx]
     # Enforce: cannot be active if balance < amount_per_referral
     camp = CampaignService.enforce_auto_pause_if_insufficient_balance(camp.id) or camp
-    kb = _my_ads_inline_keyboard(idx, len(items), camp.id, bool(camp.is_active))
+    kb = _my_ads_inline_keyboard(idx, len(items), camp.id, bool(camp.is_active), is_editing=is_editing)
     text = messages.my_ad_overview(camp.title, camp.bot_username, camp.bot_link, camp.amount_per_referral, camp.balance, bool(camp.is_active), camp.referral_count, idx + 1, len(items))
     await reply_ephemeral(update, text, reply_markup=kb)
+
+
+async def on_my_ads_edit(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handle edit button click - show edit submenu"""
+    query = update.callback_query
+    await query.answer()
+    camp_id = int(query.data.split('_')[-1])
+    await show_my_ads(update, context, page=1, is_editing=True)
+
+
+# State keys for editing flows
+EDIT_TITLE_STATE_KEY = "edit_title_state"
+EDIT_TITLE_CAMPAIGN_ID = "edit_title_campaign_id"
+
+# State keys for bot link editing flow
+EDIT_LINK_STATE_KEY = "edit_link_state"
+EDIT_LINK_CAMPAIGN_ID = "edit_link_campaign_id"
+EDIT_LINK_TEMP_LINK = "edit_link_temp_link"
+EDIT_LINK_TEMP_USERNAME = "edit_link_temp_username"
+
+
+async def on_edit_title_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Process the new title entered by the user"""
+    if not update.message or not update.message.text:
+        await update.message.reply_text("❌ Please enter a valid title.")
+        return
+        
+    new_title = update.message.text.strip()
+    if not new_title or len(new_title) > 100:  # Title validation
+        await update.message.reply_text("❌ Title must be between 1 and 100 characters.")
+        return
+        
+    user = CampaignService.get_user_by_telegram_id(str(update.effective_user.id))
+    if not user:
+        await update.message.reply_text("❌ User not found. Please /start again.")
+        return
+        
+    # Get campaign ID from context
+    camp_id = context.user_data.get(EDIT_TITLE_CAMPAIGN_ID)
+    if not camp_id:
+        await update.message.reply_text(messages.edit_campaign_session_expired())
+        return
+        
+    # Update the campaign title
+    camp, error = CampaignService.update_campaign(
+        owner_id=user.id,
+        campaign_id=camp_id,
+        title=new_title
+    )
+    
+    if error:
+        await update.message.reply_text(f"❌ Error updating title: {error}")
+        return
+        
+    # Clear the edit state
+    context.user_data.pop(EDIT_TITLE_STATE_KEY, None)
+    context.user_data.pop(EDIT_TITLE_CAMPAIGN_ID, None)
+    
+    # Show success message and return to campaign view
+    await update.message.reply_text(
+        messages.edit_campaign_title_updated(),
+        parse_mode=ParseMode.MARKDOWN
+    )
+    await show_my_ads(update, context, page=1, is_editing=False)
+
+async def on_my_ads_edit_title(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handle edit title button click - ask for new title"""
+    query = update.callback_query
+    await query.answer()
+    
+    try:
+        camp_id = int(query.data.split('_')[-1])
+        user = CampaignService.get_user_by_telegram_id(str(update.effective_user.id))
+        if not user:
+            await query.edit_message_text("❌ User not found. Please /start again.")
+            return
+            
+        # Verify campaign ownership
+        camp = CampaignService.get_campaign_by_id(camp_id)
+        if not camp or camp.owner_id != user.id:
+            await query.edit_message_text("❌ Campaign not found or access denied.")
+            return
+            
+        # Set state and store campaign ID
+        context.user_data[EDIT_TITLE_STATE_KEY] = "awaiting_title"
+        context.user_data[EDIT_TITLE_CAMPAIGN_ID] = camp_id
+        
+        # Ask for new title using message template
+        await query.edit_message_text(
+            messages.edit_campaign_ask_title(),
+            parse_mode=ParseMode.MARKDOWN
+        )
+        
+    except Exception as e:
+        logger.error(f"Error in on_my_ads_edit_title: {str(e)}")
+        await safe_notify_user(update, "❌ An error occurred. Please try again.")
+
+
+async def on_my_ads_edit_link(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handle edit link button click - start bot link update flow"""
+    query = update.callback_query
+    await query.answer()
+    
+    try:
+        camp_id = int(query.data.split('_')[-1])
+        user = CampaignService.get_user_by_telegram_id(str(update.effective_user.id))
+        if not user:
+            await query.edit_message_text("❌ User not found. Please /start again.")
+            return
+            
+        # Verify campaign ownership
+        camp = CampaignService.get_campaign_by_id(camp_id)
+        if not camp or camp.owner_id != user.id:
+            await query.edit_message_text("❌ Campaign not found or access denied.")
+            return
+            
+        # Set state for bot link editing
+        context.user_data[EDIT_LINK_STATE_KEY] = "awaiting_link"
+        context.user_data[EDIT_LINK_CAMPAIGN_ID] = camp_id
+        
+        # Ask for new bot link using message template
+        await query.edit_message_text(
+            messages.edit_campaign_ask_bot_link(),
+            parse_mode=ParseMode.MARKDOWN
+        )
+        
+    except Exception as e:
+        logger.error(f"Error in on_my_ads_edit_link: {str(e)}")
+        await safe_notify_user(update, "❌ An error occurred. Please try again.")
+
+
+async def on_edit_link_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Process the new bot link entered by the user"""
+    if not update.message or not update.message.text:
+        await update.message.reply_text("❌ Please enter a valid bot link.")
+        return
+        
+    bot_link = update.message.text.strip()
+    
+    # Extract username from the link if it's a URL
+    if 't.me/' in bot_link.lower():
+        # Handle both https://t.me/username and t.me/username formats
+        parts = bot_link.lower().split('t.me/')
+        if len(parts) > 1:
+            username = parts[1].split('/')[0].split('?')[0].replace('@', '')
+        else:
+            username = ''
+    elif bot_link.startswith('@'):
+        username = bot_link[1:]
+    else:
+        username = bot_link
+    
+    # Basic validation
+    if not username or len(username) < 3 or ' ' in username:
+        await update.message.reply_text(
+            messages.edit_campaign_invalid_bot_username(),
+            parse_mode=ParseMode.MARKDOWN
+        )
+        return
+        
+    # Store the link and username in context
+    context.user_data[EDIT_LINK_TEMP_LINK] = bot_link
+    context.user_data[EDIT_LINK_TEMP_USERNAME] = username
+    context.user_data[EDIT_LINK_STATE_KEY] = "awaiting_forward"
+    
+    # Ask user to forward a message from the bot using message template
+    await update.message.reply_text(
+        messages.edit_campaign_ask_forward_verification(username),
+        parse_mode=ParseMode.MARKDOWN
+    )
+
+
+async def on_edit_link_forward(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Process the forwarded message to verify bot link"""
+    if not update.message or not update.message.forward_from:
+        await update.message.reply_text(
+            messages.edit_campaign_forward_verification_failed(),
+            parse_mode=ParseMode.MARKDOWN
+        )
+        return
+        
+    # Get the forwarded message sender (should be the bot)
+    forwarded_from = update.message.forward_from
+    if not forwarded_from.is_bot:
+        await update.message.reply_text(
+            messages.edit_campaign_forward_not_from_bot(),
+            parse_mode=ParseMode.MARKDOWN
+        )
+        return
+        
+    # Get stored data from context
+    expected_username = context.user_data.get(EDIT_LINK_TEMP_USERNAME, '').lower()
+    bot_link = context.user_data.get(EDIT_LINK_TEMP_LINK, '')
+    camp_id = context.user_data.get(EDIT_LINK_CAMPAIGN_ID)
+    
+    # Verify the bot username matches
+    if not expected_username or not bot_link or not camp_id:
+        await update.message.reply_text(
+            messages.edit_campaign_session_expired(),
+            parse_mode=ParseMode.MARKDOWN
+        )
+        await clear_edit_link_state(context)
+        return
+        
+    # Check if the forwarded message is from the expected bot
+    if forwarded_from.username.lower() != expected_username.lower():
+        await update.message.reply_text(
+            f"❌ The forwarded message must be from @{expected_username}, "
+            f"not @{forwarded_from.username}.",
+            parse_mode=ParseMode.MARKDOWN
+        )
+        return
+        
+    # Get user and verify campaign ownership
+    user = CampaignService.get_user_by_telegram_id(str(update.effective_user.id))
+    if not user:
+        await update.message.reply_text(
+            "❌ User not found. Please /start again.",
+            parse_mode=ParseMode.MARKDOWN
+        )
+        await clear_edit_link_state(context)
+        return
+        
+    # Update the campaign with the new bot link and username
+    camp, error = CampaignService.update_campaign(
+        owner_id=user.id,
+        campaign_id=camp_id,
+        bot_link=bot_link,
+        bot_username=expected_username
+    )
+    
+    # Clear the edit state regardless of success/failure
+    await clear_edit_link_state(context)
+    
+    if error:
+        await update.message.reply_text(
+            f"❌ Error updating bot link: {error}",
+            parse_mode=ParseMode.MARKDOWN
+        )
+        return
+        
+    # Show success message and return to campaign view
+    await update.message.reply_text(
+        messages.edit_campaign_bot_link_updated(),
+        parse_mode=ParseMode.MARKDOWN
+    )
+    await show_my_ads(update, context, page=1, is_editing=False)
+
+
+async def clear_edit_link_state(context: ContextTypes.DEFAULT_TYPE):
+    """Helper to clear the bot link edit state"""
+    for key in [EDIT_LINK_STATE_KEY, EDIT_LINK_CAMPAIGN_ID, 
+               EDIT_LINK_TEMP_LINK, EDIT_LINK_TEMP_USERNAME]:
+        context.user_data.pop(key, None)
+
+
+async def on_my_ads_view(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handle back button from edit submenu - return to main view"""
+    query = update.callback_query
+    await query.answer()
+    camp_id = int(query.data.split('_')[-1])
+    await show_my_ads(update, context, page=1, is_editing=False)
 
 
 async def on_my_ads_pagination(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -309,7 +612,7 @@ async def on_my_ads_pagination(update: Update, context: ContextTypes.DEFAULT_TYP
 
 
 async def on_my_ads_actions(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Handle inline actions: toggle active/pause and start recharge flow."""
+    """Handle inline actions: toggle active/pause, start recharge flow, and edit actions."""
     query = update.callback_query
     if not query:
         return
@@ -318,6 +621,7 @@ async def on_my_ads_actions(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = CampaignService.get_user_by_telegram_id(str(update.effective_user.id))
     if not user:
         return
+
     # Toggle active/pause
     if data.startswith("myads_toggle_"):
         try:
@@ -347,6 +651,7 @@ async def on_my_ads_actions(update: Update, context: ContextTypes.DEFAULT_TYPE):
         text = messages.my_ad_overview(camp.title, camp.bot_username, camp.bot_link, camp.amount_per_referral, camp.balance, bool(camp.is_active), camp.referral_count, idx + 1, len(items))
         await reply_ephemeral(update, text, reply_markup=kb)
         return
+
     # Start recharge flow
     if data.startswith("myads_recharge_"):
         try:
@@ -361,6 +666,27 @@ async def on_my_ads_actions(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await query.edit_message_reply_markup(reply_markup=None)
         await reply_ephemeral(update, messages.myads_recharge_ask_amount(user.ad_balance), reply_markup=recharge_reply_keyboard())
         return
+
+    # Handle edit actions
+    if data.startswith("myads_edit_"):
+        try:
+            camp_id = int(data.rsplit("_", 1)[1])
+        except Exception:
+            return
+        
+        # Check ownership
+        camp = CampaignService.get_campaign_by_id(camp_id)
+        if not camp or camp.owner_id != user.id:
+            return
+
+        if data.startswith("myads_edit_title_"):
+            await on_my_ads_edit_title(update, context)
+        elif data.startswith("myads_edit_link_"):
+            await on_my_ads_edit_link(update, context)
+        elif data.startswith("myads_edit_"):  # Main edit button
+            await on_my_ads_edit(update, context)
+        elif data.startswith("myads_view_"):  # Back button from edit submenu
+            await on_my_ads_view(update, context)
 
 
 async def on_myads_recharge_text(update: Update, context: ContextTypes.DEFAULT_TYPE):

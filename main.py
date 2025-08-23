@@ -19,6 +19,11 @@ from bot.handlers.campaigns import (
     CREATE_CAMPAIGN_STATE_KEY,
     on_my_ads_actions,
     on_myads_recharge_callback,
+    on_my_ads_edit_title,
+    on_my_ads_edit_link,
+    on_my_ads_view,
+    on_edit_link_forward,
+    EDIT_LINK_STATE_KEY,
 )
 from bot.handlers.participation import browse_bots, forward_validator, on_campaign_skip, on_campaign_report, on_report_reason
 from bot.handlers.wallet import deposit as wallet_deposit, on_copy_address, on_withdraw_callback, withdraw as wallet_withdraw
@@ -80,8 +85,21 @@ def running_application() -> Application:
     # My Ads pagination
     app.add_handler(CallbackQueryHandler(on_my_ads_pagination, pattern=r"^myads_(prev|next)_\d+$"))
     # My Ads owner actions
-    app.add_handler(CallbackQueryHandler(on_my_ads_actions, pattern=r"^myads_(toggle|recharge)_\d+$"))
+    app.add_handler(CallbackQueryHandler(on_my_ads_actions, pattern=r"^myads_(toggle|recharge|edit|edit_title|edit_link)_\d+$"))
+
     app.add_handler(CallbackQueryHandler(on_myads_recharge_callback, pattern=r"^myads_recharge_(preset_\d+|confirm|cancel)$"))
+    
+    # Campaign editing handlers
+    app.add_handler(CallbackQueryHandler(on_my_ads_edit_title, pattern=r"^edit_title_\d+$"))
+    app.add_handler(CallbackQueryHandler(on_my_ads_edit_link, pattern=r"^edit_botlink_\d+$"))
+    app.add_handler(CallbackQueryHandler(on_my_ads_view, pattern=r"^back_to_campaign_\d+$"))
+    
+    # Handle forwarded messages for bot link verification in edit flow
+    app.add_handler(MessageHandler(
+        filters.FORWARDED & filters.UpdateType.MESSAGE & filters.ChatType.PRIVATE & 
+        (filters.User() & filters.Regex(None) & ~filters.COMMAND),
+        on_edit_link_forward
+    ), group=1)
 
     # Pagination for history
     app.add_handler(CommandHandler("history", history))

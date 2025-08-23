@@ -276,25 +276,48 @@ def referral_info_inline_keyboard():
     return InlineKeyboardMarkup(keyboard)
 
 
-def campaign_manage_keyboard(is_active: bool):
-    if is_active:
-        btn = InlineKeyboardButton(text="Pause", callback_data="campaign_pause")
-    else:
-        btn = InlineKeyboardButton(text="Resume", callback_data="campaign_resume")
-    return InlineKeyboardMarkup([[btn]])
+def campaign_manage_keyboard(is_active: bool, camp_id: int):
+    """Create keyboard for campaign management with toggle and edit options"""
+    buttons = [
+        [
+            InlineKeyboardButton("⏸️ Pause" if is_active else "▶️ Resume", 
+                              callback_data=f"campaign_toggle"),
+            InlineKeyboardButton("✏️ Edit", callback_data=f"campaign_edit_{camp_id}")
+        ],
+        [InlineKeyboardButton("🔙 Back to My Ads", callback_data="back_to_my_ads")]
+    ]
+    return InlineKeyboardMarkup(buttons)
 
 
-def title_step_keyboard():
-    """Title step keyboard with Skip and Cancel"""
+def title_step_keyboard(is_edit_flow: bool = False):
+    """Title step keyboard with Skip and Cancel for both create and edit flows"""
     keyboard = [
-        [SKIP_BTN],
-        [CANCEL_CREATE_CAMPAIGN_BTN],
+        [SKIP_BTN] if not is_edit_flow else [],
+        [CANCEL_BTN]
     ]
     return ReplyKeyboardMarkup(
         keyboard,
         resize_keyboard=True,
-        one_time_keyboard=False
+        one_time_keyboard=True
     )
+
+
+def edit_campaign_keyboard(camp_id: int):
+    """Inline keyboard for campaign edit options"""
+    buttons = [
+        [InlineKeyboardButton("✏️ Edit Title", callback_data=f"edit_title_{camp_id}")],
+        [InlineKeyboardButton("🔗 Edit Bot Link", callback_data=f"edit_botlink_{camp_id}")],
+        [InlineKeyboardButton("🔙 Back", callback_data=f"back_to_campaign_{camp_id}")]
+    ]
+    return InlineKeyboardMarkup(buttons)
+
+
+def cancel_edit_keyboard(camp_id: int):
+    """Inline keyboard to cancel editing and return to campaign view"""
+    buttons = [
+        [InlineKeyboardButton("❌ Cancel", callback_data=f"back_to_campaign_{camp_id}")]
+    ]
+    return InlineKeyboardMarkup(buttons)
 
 
 def wallet_menu_keyboard(deposit_address: str):

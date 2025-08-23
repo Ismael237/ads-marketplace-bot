@@ -90,6 +90,53 @@ class CampaignService:
             db.refresh(camp)
             return camp
 
+    # ====== Update Campaign ======
+    @staticmethod
+    def update_campaign(
+        owner_id: int,
+        campaign_id: int,
+        title: str = None,
+        bot_link: str = None,
+        bot_username: str = None
+    ) -> Tuple[Optional[Campaign], Optional[str]]:
+        """
+        Update campaign details.
+        
+        Args:
+            owner_id: ID of the campaign owner (for authorization)
+            campaign_id: ID of the campaign to update
+            title: New title (optional)
+            bot_link: New bot link (optional)
+            bot_username: New bot username (optional, will be extracted from bot_link if not provided)
+            
+        Returns:
+            Tuple of (updated_campaign, error_message)
+        """
+        with get_db_session() as db:
+            camp = db.query(Campaign).get(int(campaign_id))
+            if not camp:
+                return None, "Campaign not found"
+                
+            # Verify ownership
+            if camp.owner_id != int(owner_id):
+                return None, "Not authorized to update this campaign"
+                
+            # Update fields if provided
+            if title is not None:
+                camp.title = title.strip()
+                
+            if bot_link is not None:
+                camp.bot_link = bot_link.strip()
+                # Update username from link if not explicitly provided
+                if bot_username is None:
+                    camp.bot_username = bot_link.split('/')[-1].split('?')[0].replace('@', '')
+            elif bot_username is not None:
+                camp.bot_username = bot_username.strip()
+            
+            db.commit()
+            db.refresh(camp)
+            return camp, None
+
     # ====== Pause/Resume/Toggle ======
     @staticmethod
     def pause_campaign_by_id(campaign_id: int) -> Optional[Campaign]:

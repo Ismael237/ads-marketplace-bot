@@ -147,15 +147,21 @@ bot-marketplace/
 
 ## Version
 
-- Current version: 1.0.7
-- Release type: Fix
+- Current version: 1.0.8
+- Release type: Feature (Beta)
 
 ## Changelog
 
-### 1.0.7 — Fix
+### 1.0.8 — Feature (Beta)
+- Campaigns: Added campaign editing functionality (Beta)
+  - Edit campaign title directly
+  - Update bot link with validation
+  - New inline keyboard interface for campaign management
+  - Note: Feature is in beta and may contain some bugs
 
-• Campaigns: Remove @ username link handling
-• Helpers: Rewrite escape_markdown_v2 function, add and change default decimal for trx amount function"
+### 1.0.7 — Fix
+- Campaigns: Remove @ username link handling
+- Helpers: Rewrite escape_markdown_v2 function, add and change default decimal for trx amount function
 
 ### 1.0.6 — Patch
 

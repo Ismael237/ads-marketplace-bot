@@ -326,7 +326,27 @@ async def on_my_ads_edit(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
     camp_id = int(query.data.split('_')[-1])
-    await show_my_ads(update, context, page=1, is_editing=True)
+    # Update only the inline keyboard of the existing message
+    user = CampaignService.get_user_by_telegram_id(str(update.effective_user.id))
+    if not user:
+        return
+    items = CampaignService.list_user_campaigns_by_owner(user.id)
+    if not items:
+        return
+    # Find the campaign index and current status
+    idx = 0
+    camp = None
+    for i, it in enumerate(items):
+        if it.id == camp_id:
+            idx = i
+            camp = it
+            break
+    if not camp:
+        return
+    # Enforce auto-pause if needed to reflect accurate active state
+    camp = CampaignService.enforce_auto_pause_if_insufficient_balance(camp.id) or camp
+    kb = _my_ads_inline_keyboard(idx, len(items), camp.id, bool(camp.is_active), is_editing=True)
+    await query.edit_message_reply_markup(reply_markup=kb)
 
 
 # State keys for editing flows
@@ -580,7 +600,27 @@ async def on_my_ads_view(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
     camp_id = int(query.data.split('_')[-1])
-    await show_my_ads(update, context, page=1, is_editing=False)
+    # Update only the inline keyboard of the existing message to the main view
+    user = CampaignService.get_user_by_telegram_id(str(update.effective_user.id))
+    if not user:
+        return
+    items = CampaignService.list_user_campaigns_by_owner(user.id)
+    if not items:
+        return
+    # Find the campaign index and current status
+    idx = 0
+    camp = None
+    for i, it in enumerate(items):
+        if it.id == camp_id:
+            idx = i
+            camp = it
+            break
+    if not camp:
+        return
+    # Enforce auto-pause if needed to reflect accurate active state
+    camp = CampaignService.enforce_auto_pause_if_insufficient_balance(camp.id) or camp
+    kb = _my_ads_inline_keyboard(idx, len(items), camp.id, bool(camp.is_active), is_editing=False)
+    await query.edit_message_reply_markup(reply_markup=kb)
 
 
 async def on_my_ads_pagination(update: Update, context: ContextTypes.DEFAULT_TYPE):

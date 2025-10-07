@@ -41,8 +41,12 @@ logger = get_logger("main")
 async def route_forwarded(update, context):
     """Route forwarded messages to the correct flow depending on requester state."""
     state = context.user_data.get(CREATE_CAMPAIGN_STATE_KEY)
+    # When user is editing a campaign bot link and awaiting a forward, route to edit flow
+    edit_link_state = context.user_data.get(EDIT_LINK_STATE_KEY)
     try:
-        if state == "ask_forward":
+        if edit_link_state == "awaiting_forward":
+            await on_edit_link_forward(update, context)
+        elif state == "ask_forward":
             await on_create_campaign_forward(update, context)
         else:
             await forward_validator(update, context)
@@ -85,7 +89,7 @@ def running_application() -> Application:
     # My Ads pagination
     app.add_handler(CallbackQueryHandler(on_my_ads_pagination, pattern=r"^myads_(prev|next)_\d+$"))
     # My Ads owner actions
-    app.add_handler(CallbackQueryHandler(on_my_ads_actions, pattern=r"^myads_(toggle|recharge|edit|edit_title|edit_link)_\d+$"))
+    app.add_handler(CallbackQueryHandler(on_my_ads_actions, pattern=r"^myads_(toggle|recharge|view|edit|edit_title|edit_link)_\d+$"))
 
     app.add_handler(CallbackQueryHandler(on_myads_recharge_callback, pattern=r"^myads_recharge_(preset_\d+|confirm|cancel)$"))
     
@@ -94,12 +98,7 @@ def running_application() -> Application:
     app.add_handler(CallbackQueryHandler(on_my_ads_edit_link, pattern=r"^edit_botlink_\d+$"))
     app.add_handler(CallbackQueryHandler(on_my_ads_view, pattern=r"^back_to_campaign_\d+$"))
     
-    # Handle forwarded messages for bot link verification in edit flow
-    app.add_handler(MessageHandler(
-        filters.FORWARDED & filters.UpdateType.MESSAGE & filters.ChatType.PRIVATE & 
-        (filters.User() & filters.Regex(None) & ~filters.COMMAND),
-        on_edit_link_forward
-    ), group=1)
+    # Note: forwarded messages are centrally routed by route_forwarded
 
     # Pagination for history
     app.add_handler(CommandHandler("history", history))

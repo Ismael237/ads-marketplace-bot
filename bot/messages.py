@@ -248,7 +248,8 @@ def edit_campaign_ask_bot_link() -> str:
     """Prompt user to enter a new bot link"""
     return (
         "🔗 *Update Bot Link*\n\n"
-        "Please send me the new bot link (e.g., https://t.me/yourbot or @yourbot):\n\n"
+        "Please send me the new bot link\n"
+        "Examples: `https://t\.me/MyBot?start\=referral_code`\n\n"
         "⚠️ The bot must be public and you must be able to forward messages from it."
     )
 

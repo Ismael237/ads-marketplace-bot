@@ -33,4 +33,4 @@ async def start(update, context: ContextTypes.DEFAULT_TYPE):
                     display_label = f"@{username}" if username else (first_name or None)
                     notif = messages.sponsor_new_referral_notification(display_label)
                     safe_notify_user(sponsor.telegram_id, notif)
-    await reply_ephemeral(update, messages.welcome(context.bot.username), reply_markup=main_reply_keyboard())
+    await reply_ephemeral(update, messages.welcome(context.bot.first_name), reply_markup=main_reply_keyboard())

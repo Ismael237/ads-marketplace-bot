@@ -142,8 +142,24 @@ async def forward_validator(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 except Exception:
                     pass
                 return
+            # New rule: user can only ever validate once for a campaign
+            if ParticipationService.has_user_validated_for_campaign(camp.id, user.id):
+                await reply_ephemeral(update, messages.campaign_already_participated())
+                try:
+                    context.user_data.pop("current_campaign_id", None)
+                except Exception:
+                    pass
+                return
             else:
                 part = ParticipationService.start_participation(camp.id, user.id)
+                if part is None:
+                    # Could not start because already validated previously
+                    await reply_ephemeral(update, messages.campaign_already_participated())
+                    try:
+                        context.user_data.pop("current_campaign_id", None)
+                    except Exception:
+                        pass
+                    return
 
     # Validate forward source
     origin_username = _get_forward_origin_username(update.message)
@@ -174,7 +190,7 @@ async def forward_validator(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # Sponsor notification and admin notification (informational only)
     apr = camp.amount_per_referral or Decimal("0")
     sponsor_pct = Decimal(str(getattr(config, "SPONSOR_PARTICIPATION_COMMISSION_PERCENT", 5))) / Decimal("100")
-    sponsor_commission = (apr * sponsor_pct).quantize(Decimal("0.000001"))
+    sponsor_commission = (user_reward * sponsor_pct).quantize(Decimal("0.000001"))
     if getattr(user, 'sponsor_id', None) and sponsor_commission > 0:
         sponsor = CampaignService.get_user_by_telegram_id(str(getattr(user, 'sponsor_id', ''))) or None
         # If user model's sponsor_id stores numeric user.id, fetch by id instead of telegram
@@ -192,11 +208,18 @@ async def forward_validator(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 spons_tid = int(sponsor.telegram_id)
             except Exception:
                 spons_tid = sponsor.telegram_id
-            username = user.username or "user"
+            # Build a safe display label for the referred user
+            if getattr(user, 'username', None):
+                display_label = f"@{user.username}"
+            else:
+                first_name = (getattr(user, 'first_name', None) or "").strip()
+                last_name = (getattr(user, 'last_name', None) or "").strip()
+                full_name = (f"{first_name} {last_name}".strip()) or "a user"
+                display_label = full_name
             msg = (
                 f"🎉 *Commission Received*\n"
-                f"You have received {escape_markdown_v2(str(int(sponsor_pct * 100)))}% on a validated participation by @"
-                f"{escape_markdown_v2(username)}\n"
+                f"You have received {escape_markdown_v2(str(int(sponsor_pct * 100)))}% on a validated participation by "
+                f"{escape_markdown_v2(display_label)}\n"
                 f"Amount\\: {format_trx_escaped(sponsor_commission)} TRX"
             )
             safe_notify_user(spons_tid, msg)

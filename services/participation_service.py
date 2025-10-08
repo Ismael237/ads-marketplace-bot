@@ -40,16 +40,15 @@ class ParticipationService:
                 current_user = db.query(User).filter(User.telegram_id == str(telegram_id)).first()
                 if current_user:
                     q = q.filter(Campaign.owner_id != current_user.id)
-                    today = get_utc_date()
-                    validated_today_subq = (
+                    # Exclude campaigns where the user has already validated participation (lifetime, not just today)
+                    validated_anytime_subq = (
                         select(CampaignParticipation.campaign_id)
                         .where(
                             CampaignParticipation.user_id == current_user.id,
                             CampaignParticipation.status == ParticipationStatus.validated,
-                            func.date(CampaignParticipation.validated_at) == today,
                         )
                     )
-                    q = q.filter(~Campaign.id.in_(validated_today_subq))
+                    q = q.filter(~Campaign.id.in_(validated_anytime_subq))
             return q.all()
 
     @staticmethod
@@ -62,13 +61,12 @@ class ParticipationService:
             user = db.query(User).filter(User.telegram_id == str(telegram_id)).first()
             if not user:
                 return None
-            today = get_utc_date()
+            # Exclude campaigns already validated by the user (lifetime)
             validated_today_subq = (
                 select(CampaignParticipation.campaign_id)
                 .where(
                     CampaignParticipation.user_id == user.id,
                     CampaignParticipation.status == ParticipationStatus.validated,
-                    func.date(CampaignParticipation.validated_at) == today,
                 )
             )
             base_q = (
@@ -80,10 +78,37 @@ class ParticipationService:
             preferred_q = base_q.filter(Campaign.owner_id != user.id).order_by(Campaign.id.desc())
             return preferred_q.first()
 
+    @staticmethod
+    def has_user_validated_for_campaign(campaign_id: int, user_id: int) -> bool:
+        """Return True if the user already has a validated participation for the campaign (ever)."""
+        with get_db_session() as db:
+            exists = (
+                db.query(CampaignParticipation)
+                .filter(
+                    CampaignParticipation.campaign_id == int(campaign_id),
+                    CampaignParticipation.user_id == int(user_id),
+                    CampaignParticipation.status == ParticipationStatus.validated,
+                )
+                .first()
+            )
+            return exists is not None
+
     # ===== Participation lifecycle =====
     @staticmethod
     def start_participation(campaign_id: int, user_id: int) -> Optional[CampaignParticipation]:
         with get_db_session() as db:
+            # Prevent multiple participations per campaign per user after a validation has occurred
+            already_validated = (
+                db.query(CampaignParticipation)
+                .filter(
+                    CampaignParticipation.campaign_id == int(campaign_id),
+                    CampaignParticipation.user_id == int(user_id),
+                    CampaignParticipation.status == ParticipationStatus.validated,
+                )
+                .first()
+            )
+            if already_validated:
+                return None
             part = CampaignParticipation(
                 campaign_id=int(campaign_id),
                 user_id=int(user_id),
@@ -135,7 +160,7 @@ class ParticipationService:
             user_pct = Decimal(str(getattr(config, "PARTICIPATION_USER_REWARD_PERCENT", 75))) / Decimal("100")
             sponsor_pct = Decimal(str(getattr(config, "SPONSOR_PARTICIPATION_COMMISSION_PERCENT", 5))) / Decimal("100")
             user_reward = (apr * user_pct).quantize(Decimal("0.000001"))
-            sponsor_commission = (apr * sponsor_pct).quantize(Decimal("0.000001"))
+            sponsor_commission = (user_reward * sponsor_pct).quantize(Decimal("0.000001"))
 
             # Deduct full APR from campaign, credit user, increment count
             camp.balance -= apr
@@ -159,7 +184,7 @@ class ParticipationService:
                     ReferralService.pay_task_commission(
                         sponsor_id=int(user.sponsor_id),
                         referred_user_id=user.id,
-                        amount_trx=apr,
+                        amount_trx=sponsor_commission,
                         percentage=sponsor_pct,
                         participation_id=part.id,
                     )

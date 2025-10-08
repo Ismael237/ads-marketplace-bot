@@ -248,9 +248,18 @@ async def handle_error(update, context):
     """Log Errors caused by Updates."""
     logger.warning(f'Update "{update}" caused error "{context.error}"')
     try:
-        await update.message.reply_text('An error occurred. Please try again or contact support.')
+        # Send a styled error message with support info
+        from bot import messages
+        from bot.utils import reply_ephemeral
+        header = "⚠️ An error occurred\n"
+        support = messages.support_message(None)
+        await reply_ephemeral(update, header + support)
     except:
         try:
-            await update.callback_query.message.reply_text('An error occurred. Please try again or contact support.')
+            from bot import messages
+            from bot.utils import reply_ephemeral
+            header = "⚠️ An error occurred\n"
+            support = messages.support_message(None)
+            await reply_ephemeral(update, header + support)
         except:
             pass

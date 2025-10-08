@@ -24,6 +24,7 @@ from services.wallet_service import WalletService
 from utils.logger import logger
 from utils.validators import sanitize_telegram_username
 import config
+import re
 
 
 # ===== Campaign creation flow state keys =====
@@ -51,9 +52,13 @@ async def create_campaign(update: Update, context: ContextTypes.DEFAULT_TYPE):
     args = context.args or []
     # One-shot: accept link + username [+ optional title], amount is fixed from config
     if len(args) >= 2:
-        bot_link, bot_username = args[0], args[1]
+        bot_link = args[0]
+        ok, extracted_username = _parse_bot_link_and_username(bot_link)
+        if not ok:
+            await reply_ephemeral(update, messages.create_campaign_ask_link(), reply_markup=cancel_create_campaign_keyboard())
+            return
+        bot_username = extracted_username
         title = args[2] if len(args) >= 3 else None
-        bot_username = sanitize_telegram_username(bot_username)
         amount_dec = Decimal(str(config.AMOUNT_PER_REFERRAL))
         user = CampaignService.get_user_by_telegram_id(str(update.effective_user.id))
         if not user:
@@ -77,36 +82,59 @@ async def create_campaign(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 def _extract_username_from_input(text: str) -> str | None:
-    t = (text or "").strip()
-    if not t:
-        return None
-    # Try to parse t.me links
-    lowered = t.lower()
-    if "t.me/" in lowered:
-        try:
-            after = t.split("t.me/", 1)[1]
-            user = after.split("?")[0].split("/")[0]
-            return user.replace("@", "")
-        except Exception:
-            return None
-    return None
+    """Backward-compatible alias; now only accepts full https://t.me/<user>?start=<code> links.
+    Returns the username if valid, else None.
+    """
+    ok, username = _parse_bot_link_and_username((text or "").strip())
+    return username if ok else None
+
+
+def _parse_bot_link_and_username(link: str) -> tuple[bool, str | None]:
+    """Validate bot link strictly and extract username.
+    Accept only: https://t.me/<username>?start=<referral_code>
+    - https scheme
+    - domain t.me
+    - username 3-32 chars [A-Za-z0-9_]
+    - non-empty start param
+    Returns (ok, username).
+    """
+    if not link:
+        return False, None
+    t = link.strip()
+    pattern = r'^https://t\.me/([A-Za-z0-9_]{3,32})\?start=([^&\s]+)$'
+    m = re.match(pattern, t)
+    if not m:
+        return False, None
+    return True, m.group(1)
 
 
 def _get_forward_origin_username(msg) -> str | None:
     """Extract forward origin username across PTB versions."""
     if not msg:
         return None
+    # PTB <=20: forward_from / forward_from_chat
+    try:
+        u = getattr(msg, "forward_from", None)
+        if u and getattr(u, "username", None):
+            return u.username
+    except Exception:
+        pass
+    try:
+        ch = getattr(msg, "forward_from_chat", None)
+        if ch and getattr(ch, "username", None):
+            return ch.username
+    except Exception:
+        pass
+    # PTB >=21: forward_origin
     try:
         fo = getattr(msg, "forward_origin", None)
         if fo is not None:
-            if getattr(fo, "type", None) == "user":
-                sender_user = getattr(fo, "sender_user", None)
-                if sender_user and getattr(sender_user, "username", None):
-                    return sender_user.username
-            elif getattr(fo, "type", None) == "chat":
-                chat = getattr(fo, "chat", None)
-                if chat and getattr(chat, "username", None):
-                    return chat.username
+            sender_user = getattr(fo, "sender_user", None)
+            if sender_user and getattr(sender_user, "username", None):
+                return sender_user.username
+            chat = getattr(fo, "chat", None)
+            if chat and getattr(chat, "username", None):
+                return chat.username
     except Exception:
         logger.error("Failed to extract forward origin username")
     return None
@@ -202,8 +230,8 @@ async def on_create_campaign_text(update: Update, context: ContextTypes.DEFAULT_
         return
 
     if state == "ask_link":
-        username = _extract_username_from_input(text_in)
-        if not username:
+        ok, username = _parse_bot_link_and_username(text_in)
+        if not ok or not username:
             await reply_ephemeral(update, messages.create_campaign_ask_link(), reply_markup=cancel_create_campaign_keyboard())
             return
         context.user_data[CREATE_CAMPAIGN_USERNAME_KEY] = username
@@ -326,7 +354,27 @@ async def on_my_ads_edit(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
     camp_id = int(query.data.split('_')[-1])
-    await show_my_ads(update, context, page=1, is_editing=True)
+    # Update only the inline keyboard of the existing message
+    user = CampaignService.get_user_by_telegram_id(str(update.effective_user.id))
+    if not user:
+        return
+    items = CampaignService.list_user_campaigns_by_owner(user.id)
+    if not items:
+        return
+    # Find the campaign index and current status
+    idx = 0
+    camp = None
+    for i, it in enumerate(items):
+        if it.id == camp_id:
+            idx = i
+            camp = it
+            break
+    if not camp:
+        return
+    # Enforce auto-pause if needed to reflect accurate active state
+    camp = CampaignService.enforce_auto_pause_if_insufficient_balance(camp.id) or camp
+    kb = _my_ads_inline_keyboard(idx, len(items), camp.id, bool(camp.is_active), is_editing=True)
+    await query.edit_message_reply_markup(reply_markup=kb)
 
 
 # State keys for editing flows
@@ -455,30 +503,16 @@ async def on_edit_link_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not update.message or not update.message.text:
         await update.message.reply_text("❌ Please enter a valid bot link.")
         return
-        
     bot_link = update.message.text.strip()
-    
-    # Extract username from the link if it's a URL
-    if 't.me/' in bot_link.lower():
-        # Handle both https://t.me/username and t.me/username formats
-        parts = bot_link.lower().split('t.me/')
-        if len(parts) > 1:
-            username = parts[1].split('/')[0].split('?')[0].replace('@', '')
-        else:
-            username = ''
-    elif bot_link.startswith('@'):
-        username = bot_link[1:]
-    else:
-        username = bot_link
-    
-    # Basic validation
-    if not username or len(username) < 3 or ' ' in username:
+    ok, username = _parse_bot_link_and_username(bot_link)
+    if not ok or not username:
+        # Re-ask with proper instructions
         await update.message.reply_text(
-            messages.edit_campaign_invalid_bot_username(),
+            messages.edit_campaign_ask_bot_link(),
             parse_mode=ParseMode.MARKDOWN
         )
         return
-        
+
     # Store the link and username in context
     context.user_data[EDIT_LINK_TEMP_LINK] = bot_link
     context.user_data[EDIT_LINK_TEMP_USERNAME] = username
@@ -493,18 +527,13 @@ async def on_edit_link_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def on_edit_link_forward(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Process the forwarded message to verify bot link"""
-    if not update.message or not update.message.forward_from:
+    if not update.message:
+        return
+    # Extract origin username across PTB versions (<=20 uses forward_from/forward_from_chat, >=21 uses forward_origin)
+    origin_username = _get_forward_origin_username(update.message)
+    if not origin_username:
         await update.message.reply_text(
             messages.edit_campaign_forward_verification_failed(),
-            parse_mode=ParseMode.MARKDOWN
-        )
-        return
-        
-    # Get the forwarded message sender (should be the bot)
-    forwarded_from = update.message.forward_from
-    if not forwarded_from.is_bot:
-        await update.message.reply_text(
-            messages.edit_campaign_forward_not_from_bot(),
             parse_mode=ParseMode.MARKDOWN
         )
         return
@@ -524,10 +553,10 @@ async def on_edit_link_forward(update: Update, context: ContextTypes.DEFAULT_TYP
         return
         
     # Check if the forwarded message is from the expected bot
-    if forwarded_from.username.lower() != expected_username.lower():
+    if origin_username.lower() != expected_username.lower():
         await update.message.reply_text(
             f"❌ The forwarded message must be from @{expected_username}, "
-            f"not @{forwarded_from.username}.",
+            f"not @{origin_username}.",
             parse_mode=ParseMode.MARKDOWN
         )
         return
@@ -580,7 +609,27 @@ async def on_my_ads_view(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
     camp_id = int(query.data.split('_')[-1])
-    await show_my_ads(update, context, page=1, is_editing=False)
+    # Update only the inline keyboard of the existing message to the main view
+    user = CampaignService.get_user_by_telegram_id(str(update.effective_user.id))
+    if not user:
+        return
+    items = CampaignService.list_user_campaigns_by_owner(user.id)
+    if not items:
+        return
+    # Find the campaign index and current status
+    idx = 0
+    camp = None
+    for i, it in enumerate(items):
+        if it.id == camp_id:
+            idx = i
+            camp = it
+            break
+    if not camp:
+        return
+    # Enforce auto-pause if needed to reflect accurate active state
+    camp = CampaignService.enforce_auto_pause_if_insufficient_balance(camp.id) or camp
+    kb = _my_ads_inline_keyboard(idx, len(items), camp.id, bool(camp.is_active), is_editing=False)
+    await query.edit_message_reply_markup(reply_markup=kb)
 
 
 async def on_my_ads_pagination(update: Update, context: ContextTypes.DEFAULT_TYPE):

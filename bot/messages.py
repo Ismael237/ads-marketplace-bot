@@ -1,5 +1,6 @@
 from decimal import Decimal
 from typing import Optional
+from bot.keyboards import BROWSE_BTN
 import config
 from utils.helpers import escape_markdown_v2, generate_share_link, get_separator, format_trx_escaped
 
@@ -12,15 +13,19 @@ def _esc(text: str) -> str:
     return once
 
 
-def welcome(bot_username: str) -> str:
+def welcome(bot_name: str) -> str:
     sep = get_separator()
+    browse_btn = _esc(BROWSE_BTN)
+    bot_name = _esc(bot_name)
     return (
-        "🎉 Welcome to the Campaign Marketplace Bot\n"
+        f"🎉 *Welcome to {bot_name}\\!*\n"
         f"{sep}\n"
-        "🧭 Use the menu below to browse campaigns, deposit TRX, withdraw earnings, and manage referrals\\.\n\n"
+        "💰 *Earn TRX instantly* by completing simple tasks\n"
+        "📢 *Promote your bot* and pay per validated referral\n"
+        "🎁 *Invite friends* and earn commission\\!\n\n"
+        f"👇 Tap the \"{browse_btn}\" button below to get started\\.\n\n"
         f"🆘 Need help? Contact @{_esc(config.TELEGRAM_ADMIN_USERNAME) if config.TELEGRAM_ADMIN_USERNAME else 'admin'}"
     )
-
 
 def deposit_instructions(address: str) -> str:
     sep = get_separator()
@@ -78,13 +83,16 @@ def withdraw_cancelled() -> str:
 
 def browse_campaign(camp_title: str, amount_per_referral: Decimal) -> str:
     sep = get_separator()
+    disclaimer = "❗ WARNING:This is a third\\-party advertisement\\."
+    disclaimer += "Please be cautious when interacting with the bot\\.\n"
     return (
-        "📣 Campaign\n"
+        disclaimer +
+        f"{sep}\n\n"
+        f"*{_esc(camp_title)}*\n"
+        f"💰 Reward per task: `{format_trx_escaped(amount_per_referral)} TRX`\n\n"
         f"{sep}\n"
-        f"Title: `{_esc(camp_title)}`\n"
-        f"Reward per task: `{format_trx_escaped(amount_per_referral)} TRX`\n\n"
-        "1️⃣ Tap Message Bot to start\\.\n"
-        "2️⃣ Forward a recent message back here to participate\\.\n"
+        "1️⃣ Tap Message Bot to start\n"
+        "2️⃣ Forward a recent message from that bot to me to participate\n"
     )
 
 
@@ -248,7 +256,8 @@ def edit_campaign_ask_bot_link() -> str:
     """Prompt user to enter a new bot link"""
     return (
         "🔗 *Update Bot Link*\n\n"
-        "Please send me the new bot link (e.g., https://t.me/yourbot or @yourbot):\n\n"
+        "Please send me the new bot link\n"
+        "Examples: `https://t\.me/MyBot?start\=referral_code`\n\n"
         "⚠️ The bot must be public and you must be able to forward messages from it."
     )
 
@@ -274,9 +283,7 @@ def edit_campaign_invalid_bot_username() -> str:
     return (
         "❌ *Invalid Bot Username*\n\n"
         "Please provide a valid bot link or username. It should be in the format:\n"
-        "• `https://t.me/yourbot`\n"
-        "• `@yourbot`\n"
-        "• or just `yourbot`"
+        "• `https://t\.me/MyBot?start\=referral_code`\n"
     )
 
 
@@ -375,6 +382,13 @@ def campaign_participation_blocked() -> str:
     return "🔒 You cannot participate in this campaign at the moment\. Please try a different campaign\."
 
 
+def campaign_already_participated() -> str:
+    return (
+        "✅ You have already completed this campaign before\."
+        " You can only participate once per campaign\."
+    )
+
+
 # ==================== Internal Transfer (earn -> ad) ====================
 def transfer_ask_amount(current_earn_balance: Decimal, fee_rate: float) -> str:
     sep = get_separator()
@@ -385,8 +399,8 @@ def transfer_ask_amount(current_earn_balance: Decimal, fee_rate: float) -> str:
         f"Transfer Fee: `{_esc(fee_rate * 100)}%`\n"
         "Minimum Transfer: `1 TRX`\n"
         f"{sep}\n"
-        "🔢 Enter amount or use quick options below\.\n"
         "ℹ️ *Note:* Whole numbers only"
+        "🔢 Enter amount or use quick options below\.\n"
     )
 
 

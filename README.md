@@ -147,10 +147,23 @@ bot-marketplace/
 
 ## Version
 
-- Current version: 1.0.8
-- Release type: Feature (Beta)
+- Current version: 1.0.9
+- Release type: Feature
 
 ## Changelog
+
+### 1.0.9 — Feature
+- Participation: Enforce unique campaign participation (one-time per campaign, lifetime)
+  - Users can now only participate once per campaign (previously daily limit)
+  - Campaigns already validated are excluded from browsing
+  - Clear error messages for duplicate participation attempts
+  - Added `has_user_validated_for_campaign` helper method
+- UX: Improved user-facing messages and error handling
+  - Enhanced welcome message with bot name and clearer call-to-action
+  - Added third-party advertisement disclaimer to campaign browse
+  - Styled error handler with emojis, separators, and support contact
+  - Fixed sponsor notifications to handle users without username (uses first/last name fallback)
+- Messages: Refined campaign and error message formatting for better clarity
 
 ### 1.0.8 — Feature (Beta)
 - Campaigns: Added campaign editing functionality (Beta)

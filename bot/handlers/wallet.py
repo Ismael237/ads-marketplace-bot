@@ -351,7 +351,7 @@ async def check_deposit(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if update.callback_query:
             await update.callback_query.answer(f"⏰ Please wait {seconds_left}s", show_alert=True)
         else:
-            await reply_ephemeral(update, messages.check_deposit_cooldown(seconds_left), reply_markup=wallet_reply_keyboard())
+            await reply_ephemeral(update, messages.check_deposit_cooldown(seconds_left))
         return
 
     # Update last check time
@@ -365,11 +365,10 @@ async def check_deposit(update: Update, context: ContextTypes.DEFAULT_TYPE):
     checking_msg = None
     if update.callback_query:
         checking_msg = await update.callback_query.message.reply_markdown_v2(
-            messages.check_deposit_checking(),
-            reply_markup=wallet_reply_keyboard()
+            messages.check_deposit_checking()
         )
     else:
-        checking_msg = await reply_ephemeral(update, messages.check_deposit_checking(), reply_markup=wallet_reply_keyboard())
+        checking_msg = await reply_ephemeral(update, messages.check_deposit_checking())
 
     try:
         # Get user wallet
@@ -390,7 +389,6 @@ async def check_deposit(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 chat_id=update.effective_user.id,
                 text=f"❌ Error checking blockchain\\. Please try again later\\.",
                 parse_mode="MarkdownV2",
-                reply_markup=wallet_reply_keyboard()
             )
             return
         
@@ -404,7 +402,6 @@ async def check_deposit(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 chat_id=update.effective_user.id,
                 text=messages.check_deposit_no_transactions(),
                 parse_mode="MarkdownV2",
-                reply_markup=wallet_reply_keyboard()
             )
             return
 
@@ -465,7 +462,6 @@ async def check_deposit(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 chat_id=update.effective_user.id,
                 text="✅ Deposit check complete\\.",
                 parse_mode="MarkdownV2",
-                reply_markup=wallet_reply_keyboard()
             )
         elif pending_deposits:
             # Show first pending deposit
@@ -474,14 +470,12 @@ async def check_deposit(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 chat_id=update.effective_user.id,
                 text=messages.check_deposit_pending(tx_hash, confirmations),
                 parse_mode="MarkdownV2",
-                reply_markup=wallet_reply_keyboard()
             )
         else:
             await context.bot.send_message(
                 chat_id=update.effective_user.id,
                 text=messages.check_deposit_no_transactions(),
                 parse_mode="MarkdownV2",
-                reply_markup=wallet_reply_keyboard()
             )
 
     except Exception as e:
@@ -496,7 +490,6 @@ async def check_deposit(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 chat_id=update.effective_user.id,
                 text=f"❌ Error checking deposits\\: {escape_markdown_v2(str(e))}",
                 parse_mode="MarkdownV2",
-                reply_markup=wallet_reply_keyboard()
             )
         except Exception:
             pass

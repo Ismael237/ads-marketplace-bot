@@ -147,10 +147,29 @@ bot-marketplace/
 
 ## Version
 
-- Current version: 1.0.9
-- Release type: Feature
+- Current version: 1.1.0
+- Release type: Minor
 
 ## Changelog
+
+### 1.1.0 — Minor
+- Deposits: Implement manual deposit verification system
+  - Replace automatic deposit monitoring with user-triggered verification
+  - Add "🔄 Check Deposit" button in wallet menu (reply keyboard)
+  - Add inline "🔄 Check Deposit" button on deposit address message
+  - Implement 30-second cooldown between deposit checks (configurable via `CHECK_DEPOSIT_COOLDOWN_SECONDS`)
+  - Automatic forwarding to main wallet on deposit confirmation
+  - Add timeout handling for TRON API requests (15s)
+  - Improved error handling and user feedback messages
+  - Disable automatic deposit_monitor scheduler (users now manually check deposits)
+- Config: Add `CHECK_DEPOSIT_COOLDOWN_SECONDS` parameter (default: 30)
+- UX: Enhanced deposit flow with clear instructions and status messages
+- Performance: Reduced server load by removing continuous deposit monitoring
+
+Upgrade steps:
+1. Add `CHECK_DEPOSIT_COOLDOWN_SECONDS=30` to `.env` (optional, defaults to 30)
+2. Restart the bot
+3. Note: Users must now manually click "Check Deposit" button after sending TRX
 
 ### 1.0.9 — Feature
 - Participation: Enforce unique campaign participation (one-time per campaign, lifetime)

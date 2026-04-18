@@ -38,6 +38,9 @@ TRANSFER_FEE_RATE = float(os.getenv('TRANSFER_FEE_RATE', '0.005'))  # 0.5%
 MIN_TRANSFER_TRX = int(os.getenv('MIN_TRANSFER_TRX', '1'))
 TRANSFER_INTEGER_ONLY = os.getenv('TRANSFER_INTEGER_ONLY', 'true').lower() == 'true'
 
+# Deposit Check Configuration
+CHECK_DEPOSIT_COOLDOWN_SECONDS = int(os.getenv('CHECK_DEPOSIT_COOLDOWN_SECONDS', '30'))
+
 # Sponsor commission on campaign recharge (percentage, e.g., 10 = 10%)
 SPONSOR_RECHARGE_COMMISSION_PERCENT = float(os.getenv('SPONSOR_RECHARGE_COMMISSION_PERCENT', '10'))
 

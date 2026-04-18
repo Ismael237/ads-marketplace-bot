@@ -26,7 +26,7 @@ from bot.handlers.campaigns import (
     EDIT_LINK_STATE_KEY,
 )
 from bot.handlers.participation import browse_bots, forward_validator, on_campaign_skip, on_campaign_report, on_report_reason
-from bot.handlers.wallet import deposit as wallet_deposit, on_copy_address, on_withdraw_callback, withdraw as wallet_withdraw
+from bot.handlers.wallet import deposit as wallet_deposit, on_copy_address, on_withdraw_callback, withdraw as wallet_withdraw, on_check_deposit_callback
 from bot.handlers.history import history, history_pagination
 from bot.handlers.referral import referral as referral_handler
 from bot.handlers.menu import handle_error, handle_menu_selection
@@ -85,6 +85,7 @@ def running_application() -> Application:
     app.add_handler(CommandHandler("withdraw", wallet_withdraw))
     app.add_handler(CallbackQueryHandler(on_withdraw_callback, pattern=r"^withdraw_(confirm|cancel)$"))
     app.add_handler(CallbackQueryHandler(on_copy_address, pattern=r"^copy:.+"))
+    app.add_handler(CallbackQueryHandler(on_check_deposit_callback, pattern=r"^check_deposit$"))
 
     # My Ads pagination
     app.add_handler(CallbackQueryHandler(on_my_ads_pagination, pattern=r"^myads_(prev|next)_\d+$"))
@@ -120,13 +121,14 @@ def start_scheduler():
     executors = {'default': APSchedulerThreadPoolExecutor(5)}
     scheduler = BackgroundScheduler(jobstores=jobstores, executors=executors, timezone='UTC')
     # cron job
-    scheduler.add_job(
-        run_deposit_monitor,
-        'interval',
-        minutes=int(config.DEPOSIT_MONITOR_INTERVAL_MINUTES),
-        id='monitor_deposits',
-        replace_existing=True,
-    )
+    # Deposit monitor disabled - users now manually check deposits via button
+    # scheduler.add_job(
+    #     run_deposit_monitor,
+    #     'interval',
+    #     minutes=int(config.DEPOSIT_MONITOR_INTERVAL_MINUTES),
+    #     id='monitor_deposits',
+    #     replace_existing=True,
+    # )
     scheduler.add_job(
         run_withdrawal_processor,
         'interval',

@@ -110,7 +110,7 @@ def get_trx_transactions(address):
         }
         if TRON_API_KEY:
             headers["TRON-PRO-API-KEY"] = TRON_API_KEY
-        response = requests.get(url, headers=headers)
+        response = requests.get(url, headers=headers, timeout=15)  # 15 seconds timeout
         if response.status_code == 200:
             data = response.json()
             transactions = []
@@ -129,6 +129,9 @@ def get_trx_transactions(address):
         else:
             logger.error(f"Erreur API TronGrid: {response.status_code} - {response.text}")
             return []
+    except requests.exceptions.Timeout:
+        logger.error(f"Timeout lors de la récupération des transactions pour {address}")
+        return []
     except Exception as e:
         logger.error(f"Erreur dans get_trx_transactions: {e}")
         return []

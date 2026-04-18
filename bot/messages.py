@@ -34,7 +34,7 @@ def deposit_instructions(address: str) -> str:
         f"{sep}\n"
         "Click to copy your deposit address:\n\n"
         f"`{_esc(address)}`\n\n"
-        "⏳ Your balance is credited after automatic confirmations\\."
+        "⏳ After sending TRX, use the 🔄 Check Deposit button to verify\\."
     )
 
 
@@ -546,6 +546,28 @@ def main_menu_intro() -> str:
         "• 👥 Referrals\n"
         "• ⚙️ Settings / Help"
     )
+
+
+# ==================== Check Deposit Messages ====================
+def check_deposit_checking() -> str:
+    return "🔄 *Checking for deposits\\.\\.\\.*"
+
+
+def check_deposit_no_transactions() -> str:
+    return "ℹ️ No deposit detected yet\\. Please send TRX to your deposit address first\\."
+
+
+def check_deposit_pending(tx_hash: str, confirmations: int) -> str:
+    return (
+        f"⏳ *Deposit detected but pending*\n\n"
+        f"Confirmations: `{confirmations}/19`\n"
+        f"TX\\: `{_esc(tx_hash)}`\n\n"
+        f"Please wait for more confirmations and check again\\."
+    )
+
+
+def check_deposit_cooldown(seconds_left: int) -> str:
+    return f"⏰ Please wait `{seconds_left}` seconds before checking again\\."
 
 
 # ==================== Notifications ====================

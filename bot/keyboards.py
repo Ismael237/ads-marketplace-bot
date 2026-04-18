@@ -29,6 +29,7 @@ CANCEL_TRANSFER_BTN = "❌ Cancel Transfer"
 # Balance Submenu Buttons
 VIEW_BALANCE_BTN = "💰 View Balance"
 RECENT_ACTIVITY_BTN = "📊 Recent Activity"
+CHECK_DEPOSIT_BTN = "🔄 Check Deposit"
 
 # Withdraw Buttons
 WITHDRAW_50_BTN = "50 TRX"
@@ -199,8 +200,9 @@ def settings_reply_keyboard():
 def wallet_reply_keyboard():
     """Wallet submenu keyboard: Deposit, Withdraw, History"""
     keyboard = [
-        [DEPOSIT_BTN, TRANSFER_BTN],
-        [BALANCE_BTN, WITHDRAW_BTN, HISTORY_BTN],
+        [DEPOSIT_BTN],
+        [WITHDRAW_BTN, BALANCE_BTN, HISTORY_BTN],
+        [TRANSFER_BTN, CHECK_DEPOSIT_BTN],
         [MAIN_MENU_BTN],
     ]
     return ReplyKeyboardMarkup(
@@ -322,7 +324,8 @@ def cancel_edit_keyboard(camp_id: int):
 
 def wallet_menu_keyboard(deposit_address: str):
     return InlineKeyboardMarkup([
-        [InlineKeyboardButton(text="Copy Deposit Address", callback_data=f"copy:{deposit_address}")]
+        [InlineKeyboardButton(text="Copy Deposit Address", callback_data=f"copy:{deposit_address}")],
+        [InlineKeyboardButton(text="🔄 Check Deposit", callback_data="check_deposit")]
     ])
 
 

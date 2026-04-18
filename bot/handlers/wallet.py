@@ -1,17 +1,20 @@
 from __future__ import annotations
 
+import time
 from decimal import Decimal
+from datetime import datetime
 from telegram import Update
 from telegram.ext import ContextTypes
 
 from services.wallet_service import WalletService
-from bot.utils import reply_ephemeral
+from bot.utils import reply_ephemeral, safe_notify_user
 from bot.keyboards import (
     main_reply_keyboard,
     wallet_reply_keyboard,
     withdraw_reply_keyboard,
     cancel_withdraw_keyboard,
     withdraw_confirm_inline_keyboard,
+    transaction_details_inline_keyboard,
     CANCEL_WITHDRAW_BTN,
     transfer_reply_keyboard,
     confirm_transfer_keyboard,
@@ -21,7 +24,14 @@ from bot.keyboards import (
 )
 from bot import messages
 from utils.validators import is_valid_tron_address
+from utils.crypto import decrypt_text
+from utils.tron_client import get_trx_transactions, send_trx, get_main_wallet
+from utils.helpers import get_utc_time, escape_markdown_v2, format_trx_escaped
+from utils.logger import get_logger
 import config
+
+
+logger = get_logger("wallet_handler")
 
 
 async def deposit(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -30,7 +40,8 @@ async def deposit(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await reply_ephemeral(update, "Please /start first")
         return
     text = messages.deposit_instructions(address)
-    await reply_ephemeral(update, text)
+    from bot.keyboards import wallet_menu_keyboard
+    await reply_ephemeral(update, text, reply_markup=wallet_menu_keyboard(address))
 
 
 WITHDRAW_STATE_KEY = "withdraw_state"
@@ -167,6 +178,15 @@ async def on_copy_address(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await query.message.reply_markdown_v2(messages.deposit_copied(address))
 
 
+async def on_check_deposit_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handle check deposit button from inline keyboard"""
+    query = update.callback_query
+    if not query:
+        return
+    # Don't answer yet, will be answered in check_deposit function
+    await check_deposit(update, context)
+
+
 # ===== Internal Transfer (earn_balance -> ad_balance) =====
 TRANSFER_STATE_KEY = "transfer_state"
 TRANSFER_AMOUNT_KEY = "transfer_amount"
@@ -263,3 +283,220 @@ async def on_transfer_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
             context.user_data.pop(TRANSFER_AMOUNT_KEY, None)
             await reply_ephemeral(update, messages.transfer_done(gross, new_user.earn_balance, new_user.ad_balance), reply_markup=wallet_reply_keyboard())
             return
+
+
+# ===== Check Deposit (Manual) =====
+CHECK_DEPOSIT_LAST_CHECK_KEY = "check_deposit_last_check"
+
+
+def _forward_deposit_to_main_wallet(wallet, amount: Decimal, deposit_tx_id: str, telegram_id: int) -> None:
+    """Forward a proportion of a user's deposit to the main wallet."""
+    try:
+        encrypted_key = wallet.private_key_encrypted
+        private_key = decrypt_text(encrypted_key)
+
+        main_wallet_address, _ = get_main_wallet()
+        if not main_wallet_address:
+            logger.error("[Deposit] Main wallet address not configured.")
+            return
+
+        amount_to_send = (amount * Decimal(str(config.DEPOSIT_TO_MAIN_WALLET_RATE))).quantize(Decimal('0.000001'))
+        if amount_to_send <= 0:
+            logger.warning("[Deposit] Calculated amount to send to main wallet is zero, skipping.")
+            return
+        
+        tx_id = send_trx(private_key, main_wallet_address, amount_to_send)
+        if tx_id:
+            logger.info(f"[Deposit] {amount_to_send} TRX sent to main wallet {main_wallet_address} (tx {tx_id})")
+            msg = (
+                f"✅ *Forwarded {format_trx_escaped(amount_to_send)} TRX\\.*\n"
+                f"From deposit\\:\n\n" 
+                f"`{escape_markdown_v2(deposit_tx_id)}`\n\n"
+                f"to main wallet\\.\n\n"
+                f"TX\\: `{escape_markdown_v2(tx_id)}`"
+            )
+            safe_notify_user(telegram_id, msg, reply_markup=transaction_details_inline_keyboard(tx_id))
+    except Exception as e:
+        logger.error(f"[Deposit] Error forwarding deposit to main wallet: {e}")
+        try:
+            msg = (
+                f"❌ *{format_trx_escaped(amount)} from deposit {escape_markdown_v2(deposit_tx_id)} to main wallet failed*\\.\n"
+                f"From deposit\\:\n\n"
+                f"`{escape_markdown_v2(deposit_tx_id)}`\n\n"
+                f"Error\\: {escape_markdown_v2(str(e))}"
+            )
+            safe_notify_user(telegram_id, msg)
+        except Exception:
+            pass
+
+
+async def check_deposit(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Manually check for new deposits for the current user."""
+    user = WalletService.get_user_by_telegram_id(str(update.effective_user.id))
+    if not user:
+        if update.callback_query:
+            await update.callback_query.answer("Please /start first", show_alert=True)
+        else:
+            await reply_ephemeral(update, "Please /start first")
+        return
+
+    # Check cooldown
+    last_check = context.user_data.get(CHECK_DEPOSIT_LAST_CHECK_KEY, 0)
+    now = time.time()
+    cooldown = config.CHECK_DEPOSIT_COOLDOWN_SECONDS
+    time_since_last = now - last_check
+    
+    if time_since_last < cooldown:
+        seconds_left = int(cooldown - time_since_last)
+        if update.callback_query:
+            await update.callback_query.answer(f"⏰ Please wait {seconds_left}s", show_alert=True)
+        else:
+            await reply_ephemeral(update, messages.check_deposit_cooldown(seconds_left), reply_markup=wallet_reply_keyboard())
+        return
+
+    # Update last check time
+    context.user_data[CHECK_DEPOSIT_LAST_CHECK_KEY] = now
+
+    # Answer callback query immediately to avoid timeout
+    if update.callback_query:
+        await update.callback_query.answer("🔄 Checking deposits...")
+
+    # Send checking message
+    checking_msg = None
+    if update.callback_query:
+        checking_msg = await update.callback_query.message.reply_markdown_v2(
+            messages.check_deposit_checking(),
+            reply_markup=wallet_reply_keyboard()
+        )
+    else:
+        checking_msg = await reply_ephemeral(update, messages.check_deposit_checking(), reply_markup=wallet_reply_keyboard())
+
+    try:
+        # Get user wallet
+        wallet = WalletService.get_or_create_user_wallet(user.id)
+        
+        # Fetch transactions from TRON network
+        txs = []
+        try:
+            txs = get_trx_transactions(wallet.address)
+        except Exception as e:
+            logger.error(f"[Check Deposit] Error fetching transactions: {e}")
+            if checking_msg:
+                try:
+                    await checking_msg.delete()
+                except Exception:
+                    pass
+            await context.bot.send_message(
+                chat_id=update.effective_user.id,
+                text=f"❌ Error checking blockchain\\. Please try again later\\.",
+                parse_mode="MarkdownV2",
+                reply_markup=wallet_reply_keyboard()
+            )
+            return
+        
+        if not txs:
+            if checking_msg:
+                try:
+                    await checking_msg.delete()
+                except Exception:
+                    pass
+            await context.bot.send_message(
+                chat_id=update.effective_user.id,
+                text=messages.check_deposit_no_transactions(),
+                parse_mode="MarkdownV2",
+                reply_markup=wallet_reply_keyboard()
+            )
+            return
+
+        # Process each transaction
+        deposits_found = []
+        pending_deposits = []
+        
+        for tx in txs:
+            try:
+                amount = Decimal(tx['amount']) / Decimal('1000000')
+                confirmations = tx.get('confirmations', 0)
+                
+                dep, credited_now = WalletService.upsert_deposit_and_credit_if_confirmed(
+                    user_id=wallet.user_id,
+                    wallet_id=wallet.id,
+                    tx_hash=tx['txID'],
+                    amount_trx=amount,
+                    confirmations=confirmations,
+                    now=get_utc_time(),
+                )
+                
+                if credited_now:
+                    deposits_found.append((amount, tx['txID']))
+                    logger.info(f"[Check Deposit] {amount} TRX credited to user {user.id} (tx {tx['txID']})")
+                    
+                    # Forward to main wallet (non-blocking)
+                    try:
+                        _forward_deposit_to_main_wallet(wallet, amount, tx['txID'], config.TELEGRAM_ADMIN_ID)
+                    except Exception as e:
+                        logger.error(f"[Check Deposit] Error forwarding to main wallet: {e}")
+                        
+                elif dep.status.value == 'pending':
+                    pending_deposits.append((amount, tx['txID'], confirmations))
+            except Exception as e:
+                logger.error(f"[Check Deposit] Error processing transaction: {e}")
+                continue
+
+        # Delete checking message first
+        if checking_msg:
+            try:
+                await checking_msg.delete()
+            except Exception:
+                pass
+
+        # Send appropriate messages (always with wallet keyboard)
+        if deposits_found:
+            for amount, tx_hash in deposits_found:
+                msg = f"💰 *Deposit of {format_trx_escaped(amount)} TRX confirmed*\\.\n"
+                msg += f"TX\\: `{escape_markdown_v2(tx_hash)}`"
+                await context.bot.send_message(
+                    chat_id=update.effective_user.id,
+                    text=msg,
+                    parse_mode="MarkdownV2",
+                    reply_markup=transaction_details_inline_keyboard(tx_hash)
+                )
+            # Send a final message with the wallet keyboard
+            await context.bot.send_message(
+                chat_id=update.effective_user.id,
+                text="✅ Deposit check complete\\.",
+                parse_mode="MarkdownV2",
+                reply_markup=wallet_reply_keyboard()
+            )
+        elif pending_deposits:
+            # Show first pending deposit
+            amount, tx_hash, confirmations = pending_deposits[0]
+            await context.bot.send_message(
+                chat_id=update.effective_user.id,
+                text=messages.check_deposit_pending(tx_hash, confirmations),
+                parse_mode="MarkdownV2",
+                reply_markup=wallet_reply_keyboard()
+            )
+        else:
+            await context.bot.send_message(
+                chat_id=update.effective_user.id,
+                text=messages.check_deposit_no_transactions(),
+                parse_mode="MarkdownV2",
+                reply_markup=wallet_reply_keyboard()
+            )
+
+    except Exception as e:
+        logger.error(f"[Check Deposit] Error: {e}")
+        if checking_msg:
+            try:
+                await checking_msg.delete()
+            except Exception:
+                pass
+        try:
+            await context.bot.send_message(
+                chat_id=update.effective_user.id,
+                text=f"❌ Error checking deposits\\: {escape_markdown_v2(str(e))}",
+                parse_mode="MarkdownV2",
+                reply_markup=wallet_reply_keyboard()
+            )
+        except Exception:
+            pass

@@ -34,6 +34,7 @@ from bot.keyboards import (
     ADS_ONLY_BTN,
     WITHDRAWALS_ONLY_BTN,
     TRANSFERS_ONLY_BTN,
+    CHECK_DEPOSIT_BTN,
     history_reply_keyboard,
     settings_reply_keyboard,
     main_reply_keyboard,
@@ -55,6 +56,7 @@ from bot.handlers.wallet import (
     start_transfer,
     on_transfer_text,
     TRANSFER_STATE_KEY,
+    check_deposit as wallet_check_deposit,
 )
 from bot.handlers.campaigns import (
     on_create_campaign_text,
@@ -90,6 +92,10 @@ async def on_balance(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def on_deposit(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await wallet_deposit(update, context)
+
+
+async def on_check_deposit(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await wallet_check_deposit(update, context)
 
 
 async def on_withdraw(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -198,6 +204,8 @@ async def handle_menu_selection(update: Update, context: ContextTypes.DEFAULT_TY
         await on_balance(update, context)
     elif text == DEPOSIT_BTN:
         await on_deposit(update, context)
+    elif text == CHECK_DEPOSIT_BTN:
+        await on_check_deposit(update, context)
     elif text == WITHDRAW_BTN:
         await on_withdraw(update, context)
     elif text == REFERRAL_BTN:

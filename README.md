@@ -147,10 +147,17 @@ bot-marketplace/
 
 ## Version
 
-- Current version: 1.1.0
-- Release type: Minor
+- Current version: 1.1.1
+- Release type: Patch
 
 ## Changelog
+
+### 1.1.1 — Patch
+- Fix: Main Menu button now properly cancels withdrawal flow
+  - Move MAIN_MENU_BTN check before flow routing
+  - Users can now exit withdrawal/transfer flows by clicking Main Menu
+  - Clean up all active states (withdraw, transfer, recharge, edit, campaign creation)
+  - Improve navigation consistency across all flows
 
 ### 1.1.0 — Minor
 - Deposits: Implement manual deposit verification system

@@ -186,18 +186,8 @@ async def handle_menu_selection(update: Update, context: ContextTypes.DEFAULT_TY
     if context.user_data.get("create_campaign_state"):
         await on_create_campaign_text(update, context)
         return
-        
-    # Route withdraw flow
-    if context.user_data.get(WITHDRAW_STATE_KEY):
-        await on_withdraw_text(update, context)
-        return
-
-    # Route transfer flow
-    if context.user_data.get(TRANSFER_STATE_KEY):
-        await on_transfer_text(update, context)
-        return
-
-    # Handle MAIN_MENU_BTN - clean up all active flows
+    
+    # Handle MAIN_MENU_BTN FIRST - clean up all active flows before routing
     if text == MAIN_MENU_BTN:
         # Clean up withdraw flow
         context.user_data.pop(WITHDRAW_STATE_KEY, None)
@@ -216,6 +206,16 @@ async def handle_menu_selection(update: Update, context: ContextTypes.DEFAULT_TY
         # Clean up campaign creation
         context.user_data.pop("create_campaign_state", None)
         await on_main_menu(update, context)
+        return
+        
+    # Route withdraw flow
+    if context.user_data.get(WITHDRAW_STATE_KEY):
+        await on_withdraw_text(update, context)
+        return
+
+    # Route transfer flow
+    if context.user_data.get(TRANSFER_STATE_KEY):
+        await on_transfer_text(update, context)
         return
 
     if text == BROWSE_BTN:

@@ -35,6 +35,11 @@ class WalletService:
             return db.query(User).filter(User.telegram_id == str(telegram_id)).first()
 
     @staticmethod
+    def get_user_by_id(user_id: int) -> User | None:
+        with get_db_session() as db:
+            return db.query(User).filter(User.id == int(user_id)).first()
+
+    @staticmethod
     def list_wallets() -> list[UserWallet]:
         with get_db_session() as db:
             return db.query(UserWallet).all()

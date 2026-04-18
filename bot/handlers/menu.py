@@ -56,6 +56,7 @@ from bot.handlers.wallet import (
     start_transfer,
     on_transfer_text,
     TRANSFER_STATE_KEY,
+    TRANSFER_AMOUNT_KEY,
     check_deposit as wallet_check_deposit,
 )
 from bot.handlers.campaigns import (
@@ -196,10 +197,29 @@ async def handle_menu_selection(update: Update, context: ContextTypes.DEFAULT_TY
         await on_transfer_text(update, context)
         return
 
+    # Handle MAIN_MENU_BTN - clean up all active flows
+    if text == MAIN_MENU_BTN:
+        # Clean up withdraw flow
+        context.user_data.pop(WITHDRAW_STATE_KEY, None)
+        context.user_data.pop(WITHDRAW_AMOUNT_KEY, None)
+        context.user_data.pop(WITHDRAW_ADDRESS_KEY, None)
+        # Clean up transfer flow
+        context.user_data.pop(TRANSFER_STATE_KEY, None)
+        context.user_data.pop(TRANSFER_AMOUNT_KEY, None)
+        # Clean up recharge flow
+        context.user_data.pop(MYADS_RECHARGE_STATE_KEY, None)
+        context.user_data.pop(MYADS_RECHARGE_AMOUNT_KEY, None)
+        context.user_data.pop(MYADS_RECHARGE_CAMP_ID_KEY, None)
+        # Clean up edit flows
+        context.user_data.pop(EDIT_TITLE_STATE_KEY, None)
+        context.user_data.pop(EDIT_LINK_STATE_KEY, None)
+        # Clean up campaign creation
+        context.user_data.pop("create_campaign_state", None)
+        await on_main_menu(update, context)
+        return
+
     if text == BROWSE_BTN:
         await on_browse(update, context)
-    elif text == MAIN_MENU_BTN:
-        await on_main_menu(update, context)
     elif text == BALANCE_BTN:
         await on_balance(update, context)
     elif text == DEPOSIT_BTN:

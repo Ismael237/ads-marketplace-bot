@@ -147,10 +147,18 @@ bot-marketplace/
 
 ## Version
 
-- Current version: 1.1.1
+- Current version: 1.1.2
 - Release type: Patch
 
 ## Changelog
+
+### 1.1.2 — Patch
+- Fix: Escape MarkdownV2 characters in withdrawal confirmation messages
+  - Properly escape underscore in error messages
+  - Fix "Can't parse entities" error when confirming withdrawal
+- Fix: Add missing get_user_by_id method to WalletService
+  - Fixes withdrawal processor error when processing withdrawals
+  - Worker can now properly retrieve user information
 
 ### 1.1.1 — Patch
 - Fix: Main Menu button now properly cancels withdrawal flow

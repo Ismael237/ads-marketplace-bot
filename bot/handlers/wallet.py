@@ -157,14 +157,14 @@ async def on_withdraw_callback(update: Update, context: ContextTypes.DEFAULT_TYP
             return
         w, err = WalletService.create_withdrawal(user_id=user.id, amount=amount, to_address=to_address)
         if err == "insufficient_balance":
-            await query.message.reply_markdown_v2("Insufficient earn_balance")
+            await query.message.reply_markdown_v2("⛔ Insufficient earn\\_balance")
             return
         if err == "not_found" or not w:
             return
         w_id = w.id
         context.user_data.pop(WITHDRAW_STATE_KEY, None)
         await query.edit_message_reply_markup(reply_markup=None)
-        await query.message.reply_markdown_v2(f"Withdrawal request created id={w_id}", reply_markup=main_reply_keyboard())
+        await query.message.reply_markdown_v2(f"✅ Withdrawal request created\\. ID\\: `{w_id}`", reply_markup=main_reply_keyboard())
         return
 
 
